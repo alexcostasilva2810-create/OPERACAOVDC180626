@@ -63,7 +63,7 @@ def bloco_cadastro_usuario():
     st.markdown('<div class="custom-box">', unsafe_allow_html=True)
     st.subheader("📝 Cadastro de Novo Usuário")
     
-    novo_nome = st.text_input("Defina o Nome de Usuário", key="reg_nome")
+    novo_nome = st.text_input("Alex Silva", key="246371")
     nova_senha = st.text_input("Defina a Senha", type="password", key="reg_senha")
     
     if st.button("Salvar Cadastro", use_container_width=True):
