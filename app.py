@@ -40,11 +40,11 @@ def aplicar_estilo_visual():
 # BLOCO: INICIALIZAÇÃO DO BANCO DE DADOS EM MEMÓRIA
 # =====================================================================
 def inicializar_banco_usuarios():
-    # Se a nossa "base de dados" temporária não existir, cria ela com os padrões
+    # Agora a estrutura do banco guarda um dicionário com 'senha' e 'turno' para cada usuário
     if 'banco_usuarios' not in st.session_state:
         st.session_state.banco_usuarios = {
-            "admin": "1234",
-            "alex": "zion2026"
+            "admin": {"senha": "1234", "turno": "1º TURNO"},
+            "alex": {"senha": "zion2026", "turno": "2º TURNO"}
         }
     
     # Inicializa estados de controle do sistema
@@ -63,8 +63,10 @@ def bloco_cadastro_usuario():
     st.markdown('<div class="custom-box">', unsafe_allow_html=True)
     st.subheader("📝 Cadastro de Novo Usuário")
     
-    novo_nome = st.text_input("Alex Silva", key="246371")
+    novo_nome = st.text_input("Defina o Nome de Usuário", key="reg_nome")
     nova_senha = st.text_input("Defina a Senha", type="password", key="reg_senha")
+    # Amarrando o turno já no momento do cadastro do usuário
+    novo_turno = st.selectbox("Vincular ao Turno", ["1º TURNO", "2º TURNO"], key="reg_turno")
     
     if st.button("Salvar Cadastro", use_container_width=True):
         if novo_nome.strip() == "" or nova_senha.strip() == "":
@@ -72,9 +74,12 @@ def bloco_cadastro_usuario():
         elif novo_nome in st.session_state.banco_usuarios:
             st.error("Este usuário já está cadastrado!")
         else:
-            # Adiciona o novo usuário no nosso dicionário de sessão
-            st.session_state.banco_usuarios[novo_nome] = nova_senha
-            st.success(f"Usuário '{novo_nome}' cadastrado com sucesso! Agora você pode fazer login.")
+            # Salva o usuário amarrando a senha e o turno escolhido
+            st.session_state.banco_usuarios[novo_nome] = {
+                "senha": nova_senha,
+                "turno": novo_turno
+            }
+            st.success(f"Usuário '{novo_nome}' cadastrado com sucesso no {novo_turno}! Agora você pode fazer login.")
             
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -87,23 +92,33 @@ def bloco_login():
     st.title("Zion Tecnologia")
     st.subheader("🔒 Área de Acesso")
 
-    # Campos de entrada
     nome = st.text_input("Nome de Usuário", key="login_nome")
     senha = st.text_input("Senha", type="password", key="login_senha")
-    turno = st.selectbox("Qual Turno?", ["1º TURNO", "2º TURNO"], key="login_turno")
+    turno_selecionado = st.selectbox("Qual Turno?", ["1º TURNO", "2º TURNO"], key="login_turno")
 
     if st.button("Entrar no Sistema", use_container_width=True):
-        # Busca os usuários atualizados no banco em memória
         usuarios = st.session_state.banco_usuarios
         
-        if nome in usuarios and usuarios[nome] == senha:
-            st.session_state.logged_in = True
-            st.session_state.user_name = nome
-            st.session_state.turno = turno
-            st.percent(100) # Pequena firula visual
-            st.rerun()
+        # 1. Verifica se o usuário existe no sistema
+        if nome in usuarios:
+            dados_usuario = usuarios[nome]
+            
+            # 2. Verifica se a senha está correta
+            if dados_usuario["senha"] == senha:
+                
+                # 3. VALIDAÇÃO CRÍTICA: Verifica se o turno selecionado é o mesmo cadastrado
+                if dados_usuario["turno"] == turno_selecionado:
+                    st.session_state.logged_in = True
+                    st.session_state.user_name = nome
+                    st.session_state.turno = turno_selecionado
+                    st.rerun()
+                else:
+                    # Se errar o turno, bloqueia o acesso mesmo com a senha certa
+                    st.error(f"Acesso negado! O usuário '{nome}' não está cadastrado no {turno_selecionado}.")
+            else:
+                st.error("A senha está incorreta.")
         else:
-            st.error("A senha ou o usuário está incorreto.")
+            st.error("Usuário não encontrado.")
             
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -115,11 +130,11 @@ def main():
     aplicar_estilo_visual()
     inicializar_banco_usuarios()
 
-    # Caso o usuário já tenha logado com sucesso, mostra as boas-vindas
+    # Se estiver logado, mostra o sucesso
     if st.session_state.logged_in:
         st.markdown('<div class="custom-box">', unsafe_allow_html=True)
         st.success(f"🎉 Seja Bem Vindo ao Zion Tecnologia, {st.session_state.user_name}!")
-        st.info(f"⏱️ Turno ativo: {st.session_state.turno}")
+        st.info(f"⏱️ Você entrou usando o: {st.session_state.turno}")
         
         if st.button("Sair / Logout", use_container_width=True):
             st.session_state.logged_in = False
@@ -127,7 +142,7 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    # Se NÃO estiver logado, exibe as abas na tela de entrada
+    # Se NÃO estiver logado, exibe as abas
     aba_login, aba_cadastro = st.tabs(["Acessar Conta", "Criar Nova Conta"])
     
     with aba_login:
