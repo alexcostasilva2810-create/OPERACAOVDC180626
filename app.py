@@ -42,14 +42,12 @@ def aplicar_estilo_visual():
 # BLOCO: INICIALIZAÇÃO DO BANCO DE DADOS EM MEMÓRIA
 # =====================================================================
 def inicializar_banco_usuarios():
-    # Estrutura do banco de usuários e turnos
     if 'banco_usuarios' not in st.session_state:
         st.session_state.banco_usuarios = {
             "admin": {"senha": "1234", "turno": "1º TURNO"},
             "alex": {"senha": "zion2026", "turno": "2º TURNO"}
         }
     
-    # Estados de controle de login
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
     if 'user_name' not in st.session_state:
@@ -57,10 +55,8 @@ def inicializar_banco_usuarios():
     if 'turno' not in st.session_state:
         st.session_state.turno = ""
 
-    # MÓDULO 2: Inicializa tabelas separadas para cada turno
     colunas = ["Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]
     if 'tabela_turno_1' not in st.session_state:
-        # Exemplo inicial simulado para o 1º turno
         st.session_state.tabela_turno_1 = pd.DataFrame([
             {"Dia": "18/06/2026", "Porão 1": 1500, "Porão 2": 2000, "Porão 3": 0, "Porão 4": 500, "Saldo": 4000}
         ], columns=colunas)
@@ -76,21 +72,19 @@ def converter_para_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Lançamentos')
-    dados_processados = output.getvalue()
-    return dados_processados
+    return output.getvalue()
 
 
 # =====================================================================
-# MÓDULO 2: PAINEL DE LANÇAMENTOS POR PORÃO
+# MÓDULO 2: PAINEL DE LANÇAMENTOS POR PORÃO (CORRIGIDO)
 # =====================================================================
 def bloco_painel_poroes(turno_atual):
     st.markdown(f"### 📊 Painel de Controle - {turno_atual}")
     
-    # Define qual tabela do banco em memória utilizar baseado no turno logado
     chave_tabela = 'tabela_turno_1' if turno_atual == "1º TURNO" else 'tabela_turno_2'
     df_atual = st.session_state[chave_tabela]
 
-    # --- Sub-Bloco: Formulário para Adicionar Lançamento ---
+    # Formulário para Adicionar Lançamento
     with st.expander("➕ Adicionar Novo Lançamento de Porão", expanded=True):
         col1, col2, col3, col4, col5 = st.columns(5)
         
@@ -106,11 +100,9 @@ def bloco_painel_poroes(turno_atual):
             p4 = st.number_input("Porão 4", min_value=0, value=0, step=100)
             
         if st.button("Gravar Dados", use_container_width=True):
-            # Calcula o saldo automaticamente somando os porões
             saldo_calculado = p1 + p2 + p3 + p4
             data_formatada = data_lancamento.strftime("%d/%m/%Y")
             
-            # Nova linha a ser inserida
             nova_linha = pd.DataFrame([{
                 "Dia": data_formatada,
                 "Porão 1": p1,
@@ -120,35 +112,29 @@ def bloco_painel_poroes(turno_atual):
                 "Saldo": saldo_calculado
             }])
             
-            # Atualiza o DataFrame na sessão
             st.session_state[chave_tabela] = pd.concat([df_atual, nova_linha], ignore_index=True)
             st.success("Lançamento adicionado com sucesso!")
             st.rerun()
 
-    # --- Sub-Bloco: Exibição da Tabela com Linha de Soma ---
+    # Exibição da Tabela com Linha de Soma Segura contra Erros de Dtype
     st.markdown("#### Lançamentos Registrados")
     if not df_atual.empty:
-        # Cria uma cópia para exibição com a linha de totalização
         df_exibicao = df_atual.copy()
         
-        # Garante tipos numéricos para calcular a soma corretamente
         colunas_numericas = ["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]
         df_exibicao[colunas_numericas] = df_exibicao[colunas_numericas].apply(pd.to_numeric)
         
-        # Cria a linha de SOMA TOTAL
-        linha_soma = pd.Series(index=df_exibicao.columns)
-        linha_soma["Dia"] = "SOMA TOTAL"
+        # Correção aqui: Construindo o dicionário direto para evitar o conflito de tipo do Pandas
+        dados_soma = {"Dia": "SOMA TOTAL"}
         for col in colunas_numericas:
-            linha_soma[col] = df_exibicao[col].sum()
+            dados_soma[col] = df_exibicao[col].sum()
             
-        # Adiciona a linha de soma ao final da tabela visual
-        df_exibicao = pd.concat([df_exibicao, pd.DataFrame([linha_soma])], ignore_index=True)
+        df_exibicao = pd.concat([df_exibicao, pd.DataFrame([dados_soma])], ignore_index=True)
         
-        # Renderiza a tabela de forma elegante
         st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
         
-        # --- Sub-Bloco: Botão de Exportar para Excel ---
-        dados_excel = converter_para_excel(df_atual) # Exporta apenas os dados puros (sem a linha visual de soma)
+        # Botão de Exportar para Excel
+        dados_excel = converter_para_excel(df_atual)
         st.download_button(
             label="📥 Exportar Dados para Excel",
             data=dados_excel,
@@ -223,12 +209,10 @@ def main():
     aplicar_estilo_visual()
     inicializar_banco_usuarios()
 
-    # Fluxo 1: Se o usuário estiver LOGADO, exibe o painel principal do sistema
     if st.session_state.logged_in:
         st.markdown('<div class="custom-box">', unsafe_allow_html=True)
         st.success(f"🎉 Seja Bem Vindo ao Zion Tecnologia, {st.session_state.user_name}!")
         
-        # IMPORTANTE: Carrega o Módulo 2 passando o turno do usuário logado
         bloco_painel_poroes(st.session_state.turno)
         
         st.markdown("---")
@@ -238,7 +222,6 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    # Fluxo 2: Se NÃO estiver logado, exibe as abas de Entrada (Login / Cadastro)
     aba_login, aba_cadastro = st.tabs(["Acessar Conta", "Criar Nova Conta"])
     
     with aba_login:
