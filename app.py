@@ -99,7 +99,7 @@ def inicializar_dados():
         st.session_state.banco_usuarios = {
             "admin": {"senha": "1234", "role": "admin"},
             "admin2": {"senha": "5678", "role": "admin"},
-            "alex": {"senha": "zion2026", "turno_fixo": "1º TURNO", "role": "operador"}
+            "Rubens Ferreira": {"senha": "8036", "turno_fixo": "2º TURNO", "role": "operador"}
         }
     
     if 'logged_in' not in st.session_state: st.session_state.logged_in = False
