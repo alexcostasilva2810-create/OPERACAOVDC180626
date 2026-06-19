@@ -97,14 +97,14 @@ def aplicar_estilo_visual():
 def inicializar_dados():
     if 'banco_usuarios' not in st.session_state:
         st.session_state.banco_usuarios = {
-            "admin": {"senha": "1234", "turno": "1º TURNO", "role": "admin"},
-            "admin2": {"senha": "5678", "turno": "2º TURNO", "role": "admin"},
-            "alex": {"senha": "zion2026", "turno": "1º TURNO", "role": "operador"}
+            "admin": {"senha": "1234", "role": "admin"},
+            "admin2": {"senha": "5678", "role": "admin"},
+            "alex": {"senha": "zion2026", "turno_fixo": "1º TURNO", "role": "operador"}
         }
     
     if 'logged_in' not in st.session_state: st.session_state.logged_in = False
     if 'user_name' not in st.session_state: st.session_state.user_name = ""
-    if 'turno' not in st.session_state: st.session_state.turno = ""
+    if 'turno_trabalho' not in st.session_state: st.session_state.turno_trabalho = ""
     if 'role' not in st.session_state: st.session_state.role = "operador"
     if 'menu_atual' not in st.session_state: st.session_state.menu_atual = "Lançamentos"
 
@@ -218,7 +218,7 @@ def bloco_consolidado_geral():
         st.info("Nenhum dado lançado nos turnos até o momento.")
 
 # =====================================================================
-# MÓDULO 2: OPERAÇÃO DE LANÇAMENTOS POR TURNO ISOLADO
+# MÓDULO 2: OPERAÇÃO DE LANÇAMENTOS POR TURNO
 # =====================================================================
 def bloco_painel_poroes(turno_atual):
     st.markdown(f"<h2>📊 Lançamentos Atuais - {turno_atual}</h2>", unsafe_allow_html=True)
@@ -282,95 +282,4 @@ def bloco_painel_poroes(turno_atual):
                 st.rerun()
 
         st.markdown("---")
-        df_atual[["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]] = df_atual[["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]].apply(pd.to_numeric)
-        cols_total = st.columns([2, 2, 2, 2, 2, 2, 2])
-        cols_total[0].markdown("<th>TOTAL TURNO</th>", unsafe_allow_html=True)
-        cols_total[1].markdown(f"<td>{df_atual['Porão 1'].sum()} t</td>", unsafe_allow_html=True)
-        cols_total[2].markdown(f"<td>{df_atual['Porão 2'].sum()} t</td>", unsafe_allow_html=True)
-        cols_total[3].markdown(f"<td>{df_atual['Porão 3'].sum()} t</td>", unsafe_allow_html=True)
-        cols_total[4].markdown(f"<td>{df_atual['Porão 4'].sum()} t</td>", unsafe_allow_html=True)
-        cols_total[5].markdown(f"<td>{df_atual['Saldo'].sum()} t</td>", unsafe_allow_html=True)
-    else:
-        st.info("Nenhum registro lançado para este turno.")
-
-# =====================================================================
-# MÓDULO 1: CADASTRO INTERNO (RESTRITO AO ADMINISTRADOR)
-# =====================================================================
-def bloco_cadastro():
-    st.markdown("<h2>👥 Cadastrar Novo Operador</h2>", unsafe_allow_html=True)
-    st.markdown('<div class="custom-box">', unsafe_allow_html=True)
-    nu = st.text_input("Definir Usuário")
-    np = st.text_input("Definir Senha", type="password")
-    nt = st.selectbox("Vincular a qual Turno?", ["1º TURNO", "2º TURNO"])
-    if st.button("Salvar Operador no Banco", use_container_width=True):
-        st.session_state.banco_usuarios[nu] = {"senha": np, "turno": nt, "role": "operador"}
-        st.success(f"Operador '{nu}' cadastrado com sucesso para o {nt}!")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# =====================================================================
-# INTERFACE DE LOGIN DE ACESSO
-# =====================================================================
-def bloco_login():
-    st.markdown('<div class="custom-box">', unsafe_allow_html=True)
-    st.title("Zion Tecnologia")
-    st.subheader("Login de Acesso")
-    u = st.text_input("Nome de Usuário")
-    p = st.text_input("Senha do Sistema", type="password")
-    t = st.selectbox("Selecione seu Turno de Trabalho", ["1º TURNO", "2º TURNO"])
-    if st.button("Entrar no Sistema", use_container_width=True):
-        banco = st.session_state.banco_usuarios
-        if u in banco and banco[u]["senha"] == p and banco[u]["turno"] == t:
-            st.session_state.logged_in = True
-            st.session_state.user_name = u
-            st.session_state.turno = t
-            st.session_state.role = banco[u]["role"]
-            st.session_state.menu_atual = "Lançamentos"
-            st.rerun()
-        else:
-            st.error("Dados de acesso inválidos ou turno incorreto.")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# =====================================================================
-# ORQUESTRADOR CENTRAL (CONTROLE DE MENUS E NÍVEIS DE ACESSO)
-# =====================================================================
-def main():
-    aplicar_estilo_visual()
-    inicializar_dados()
-
-    if st.session_state.logged_in:
-        # CONSTRUÇÃO DO MENU LATERAL ESQUERDO COM BOTÕES PRETOS
-        st.sidebar.title("Zion Operações")
-        st.sidebar.markdown(f"**Usuário:** {st.session_state.user_name} ({st.session_state.role.upper()})")
-        st.sidebar.markdown(f"**Turno Ativo:** {st.session_state.turno}")
-        st.sidebar.markdown("---")
-        
-        # Botões de navegação condicionados ao nível de acesso
-        if st.sidebar.button("📋 Lançamentos do Turno", use_container_width=True):
-            st.session_state.menu_atual = "Lançamentos"
-            st.rerun()
-            
-        if st.session_state.role == "admin":
-            if st.sidebar.button("📊 Visão Master (Consolidado)", use_container_width=True):
-                st.session_state.menu_atual = "Visão Master"
-                st.rerun()
-            if st.sidebar.button("👤 Cadastrar Operador", use_container_width=True):
-                st.session_state.menu_atual = "Cadastro"
-                st.rerun()
-                
-        st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
-        if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
-            st.session_state.logged_in = False
-            st.rerun()
-            
-        # Direcionamento do Menu Lateral Esquerdo
-        if st.session_state.menu_atual == "Lançamentos":
-            bloco_painel_poroes(st.session_state.turno)
-        elif st.session_state.menu_atual == "Visão Master" and st.session_state.role == "admin":
-            bloco_consolidado_geral()
-        elif st.session_state.menu_atual == "Cadastro" and st.session_state.role == "admin":
-            bloco_cadastro()
-    else:
-        bloco_login()
-
-if __name__ == "__main__":
-    main()
+        df_atual
