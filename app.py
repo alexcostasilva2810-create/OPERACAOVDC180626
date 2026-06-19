@@ -102,8 +102,8 @@ def inicializar_dados():
             "Rubens Ferreira": {"senha": "8036", "turno_fixo": "2º TURNO", "role": "operador"}
             "Tallison Menezes": {"senha": "4991", "turno_fixo": "1º TURNO", "role": "operador"}
             "Caio Rosario": {"senha": "6244", "turno_fixo": "1º TURNO", "role": "operador"}
-            "Cleiyvson Cardoso": {"senha": "4194", "turno_fixo": "2º TURNO", "role": "operador"}     
-        }
+            "Cleiyvson Cardoso": {"senha": "4194", "turno_fixo": "2º TURNO", "role": "operador"}
+            }
     
     if 'logged_in' not in st.session_state: st.session_state.logged_in = False
     if 'user_name' not in st.session_state: st.session_state.user_name = ""
