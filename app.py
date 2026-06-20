@@ -194,54 +194,55 @@ def bloco_painel_poroes(turno_atual):
         val_p3 = int(row_edit["Porão 3"])
         val_p4 = int(row_edit["Porão 4"])
         val_p5 = int(row_edit["Porão 5"])
-        titulo_box, texto_botao = "Alterar Lançamento", "Salvar Alterações"
+        texto_botao = "Salvar Alterações"
     else:
         val_p1 = val_p2 = val_p3 = val_p4 = val_p5 = 0
-        titulo_box, texto_botao = "Novo Lançamento (5 Porões)", "Gravar Lançamento"
+        texto_botao = "Gravar Lançamento"
 
-    with st.expander(titulo_box, expanded=True):
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
-        with col1: data_lan = st.date_input("Data", format="DD/MM/YYYY", key=f"dt_{turno_atual}")
-        with col2: v1 = st.number_input("Porão 1 (t)", min_value=0, step=50, value=val_p1, key=f"p1_{turno_atual}")
-        with col3: v2 = st.number_input("Porão 2 (t)", min_value=0, step=50, value=val_p2, key=f"p2_{turno_atual}")
-        with col4: v3 = st.number_input("Porão 3 (t)", min_value=0, step=50, value=val_p3, key=f"p3_{turno_atual}")
-        with col5: v4 = st.number_input("Porão 4 (t)", min_value=0, step=50, value=val_p4, key=f"p4_{turno_atual}")
-        with col6: v5 = st.number_input("Porão 5 (t)", min_value=0, step=50, value=val_p5, key=f"p5_{turno_atual}")
-        
-        c_btn1, c_btn2 = st.columns([5, 1])
-        with c_btn1:
-            if st.button(texto_botao, use_container_width=True, key=f"btn_acao_{turno_atual}"):
-                hora_correta = obter_hora_atual_brasil()
-                saldo_calculado = v1 + v2 + v3 + v4 + v5
-                
-                df_atualizar_salvamento = carregar_dados_do_sheets()
-                
-                if st.session_state.edit_mode:
-                    idx_original_planilha = df_turno.iloc[st.session_state.edit_index]['index']
-                    df_atualizar_salvamento.at[idx_original_planilha, "Dia"] = data_lan.strftime("%d/%m/%Y")
-                    df_atualizar_salvamento.at[idx_original_planilha, "Porão 1"] = v1
-                    df_atualizar_salvamento.at[idx_original_planilha, "Porão 2"] = v2
-                    df_atualizar_salvamento.at[idx_original_planilha, "Porão 3"] = v3
-                    df_atualizar_salvamento.at[idx_original_planilha, "Porão 4"] = v4
-                    df_atualizar_salvamento.at[idx_original_planilha, "Porão 5"] = v5
-                    df_atualizar_salvamento.at[idx_original_planilha, "Saldo"] = saldo_calculado
-                    df_atualizar_salvamento.at[idx_original_planilha, "Usuario"] = st.session_state.user_name
-                    df_atualizar_salvamento.at[idx_original_planilha, "Hora"] = hora_correta
-                    st.session_state.edit_mode, st.session_state.edit_index = False, None
-                else:
-                    nova_linha = pd.DataFrame([{
-                        "Turno": turno_atual, "Dia": data_lan.strftime("%d/%m/%Y"), 
-                        "Porão 1": v1, "Porão 2": v2, "Porão 3": v3, "Porão 4": v4, "Porão 5": v5, 
-                        "Saldo": saldo_calculado, "Usuario": st.session_state.user_name, "Hora": hora_correta
-                    }])
-                    df_atualizar_salvamento = pd.concat([df_atualizar_salvamento, nova_linha], ignore_index=True)
-                
-                sincronizar_com_sheets(df_atualizar_salvamento)
-                st.rerun()
-        with c_btn2:
-            if st.session_state.edit_mode and st.button("Cancelar", use_container_width=True, key=f"btn_cancela_{turno_atual}"):
+    # INPUTS EM LINHA DIRETA SEM CONTAINERS PROBLEMÁTICOS
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    with col1: data_lan = st.date_input("Data", format="DD/MM/YYYY", key=f"dt_{turno_atual}")
+    with col2: v1 = st.number_input("Porão 1 (t)", min_value=0, step=50, value=val_p1, key=f"p1_{turno_atual}")
+    with col3: v2 = st.number_input("Porão 2 (t)", min_value=0, step=50, value=val_p2, key=f"p2_{turno_atual}")
+    with col4: v3 = st.number_input("Porão 3 (t)", min_value=0, step=50, value=val_p3, key=f"p3_{turno_atual}")
+    with col5: v4 = st.number_input("Porão 4 (t)", min_value=0, step=50, value=val_p4, key=f"p4_{turno_atual}")
+    with col6: v5 = st.number_input("Porão 5 (t)", min_value=0, step=50, value=val_p5, key=f"p5_{turno_atual}")
+    
+    c_btn1, c_btn2 = st.columns([5, 1])
+    with c_btn1:
+        if st.button(texto_botao, use_container_width=True, key=f"btn_save_{turno_atual}"):
+            hora_correta = obter_hora_atual_brasil()
+            saldo_calculado = v1 + v2 + v3 + v4 + v5
+            
+            df_atualizar_salvamento = carregar_dados_do_sheets()
+            
+            if st.session_state.edit_mode:
+                idx_original_planilha = df_turno.iloc[st.session_state.edit_index]['index']
+                df_atualizar_salvamento.at[idx_original_planilha, "Dia"] = data_lan.strftime("%d/%m/%Y")
+                df_atualizar_salvamento.at[idx_original_planilha, "Porão 1"] = v1
+                df_atualizar_salvamento.at[idx_original_planilha, "Porão 2"] = v2
+                df_atualizar_salvamento.at[idx_original_planilha, "Porão 3"] = v3
+                df_atualizar_salvamento.at[idx_original_planilha, "Porão 4"] = v4
+                df_atualizar_salvamento.at[idx_original_planilha, "Porão 5"] = v5
+                df_atualizar_salvamento.at[idx_original_planilha, "Saldo"] = saldo_calculado
+                df_atualizar_salvamento.at[idx_original_planilha, "Usuario"] = st.session_state.user_name
+                df_atualizar_salvamento.at[idx_original_planilha, "Hora"] = hora_correta
                 st.session_state.edit_mode, st.session_state.edit_index = False, None
-                st.rerun()
+            else:
+                nova_linha = pd.DataFrame([{
+                    "Turno": turno_atual, "Dia": data_lan.strftime("%d/%m/%Y"), 
+                    "Porão 1": v1, "Porão 2": v2, "Porão 3": v3, "Porão 4": v4, "Porão 5": v5, 
+                    "Saldo": saldo_calculado, "Usuario": st.session_state.user_name, "Hora": hora_correta
+                }])
+                df_atualizar_salvamento = pd.concat([df_atualizar_salvamento, nova_linha], ignore_index=True)
+            
+            sincronizar_com_sheets(df_atualizar_salvamento)
+            st.rerun()
+            
+    with c_btn2:
+        if st.session_state.edit_mode and st.button("Cancelar", use_container_width=True, key=f"btn_cancel_{turno_atual}"):
+            st.session_state.edit_mode, st.session_state.edit_index = False, None
+            st.rerun()
 
     if not df_turno.empty:
         st.markdown("#### Histórico do Turno")
@@ -256,7 +257,7 @@ def bloco_painel_poroes(turno_atual):
         with col_btn_ed:
             if st.button("Editar Linha", use_container_width=True, key=f"btn_ed_{turno_atual}"):
                 st.session_state.edit_mode = True
-                st.session_state.edit_index = linhas_opcoes.index(linha_selecionada)
+                st.session_state.edit_index = lines_opcoes.index(linha_selecionada)
                 st.rerun()
     else:
         st.info("Nenhum registro lançado para este turno.")
