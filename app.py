@@ -11,7 +11,7 @@ from streamlit_gsheets import GSheetsConnection
 # Configuração da página
 st.set_page_config(page_title="Zion Tecnologia - Gestão Portuária", page_icon="🚢", layout="wide")
 
-# Inicialização persistente do banco de usuários na sessão
+# Inicialização do banco de usuários
 if 'banco_usuarios' not in st.session_state:
     st.session_state.banco_usuarios = {
         "admin": {"senha": "1234", "role": "admin"},
@@ -20,32 +20,36 @@ if 'banco_usuarios' not in st.session_state:
         "Rubens Ferreira": {"senha": "8036", "turno_fixo": "2º TURNO", "role": "operador"}
     }
 
-# Estilização CSS: Mantém o tema escuro/verde original e aplica branco/preto APENAS na tabela global
+# Estilização CSS focada estritamente no seu pedido
 st.markdown(
     """
     <style>
-    /* Tema Escuro Geral do Sistema */
-    .stApp { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
+    /* TODO O SISTEMA: Fundo preto e letras verdes */
+    .stApp { background-color: #000000 !important; }
+    
     p, label, .stMarkdown p, .stSelectbox label, .stInputField label, .stDateInput label { 
         color: #00ff66 !important; 
         font-weight: bold !important; 
     }
-    h1, h2, h3, h4 { color: #38bdf8 !important; font-weight: bold !important; }
+    h1, h2, h3, h4 { color: #00ff66 !important; font-weight: bold !important; }
     
     .custom-box {
-        background-color: rgba(15, 23, 42, 0.8);
+        background-color: #000000;
         padding: 1.5rem;
         border-radius: 12px;
         border: 2px solid #00ff66;
         margin-bottom: 1rem;
     }
 
-    /* Modificação EXCLUSIVA para a tabela do histórico da Visão Global */
-    .tabela-global-container .stDataFrame {
+    /* EXCEÇÃO APENAS PARA A TABELA DO HISTÓRICO DA VISÃO GLOBAL: Fundo branco e letras pretas */
+    .tabela-global-exclusiva .stDataFrame {
         background-color: #ffffff !important;
+        border: 2px solid #ffffff !important;
+        border-radius: 4px !important;
+    }
+    .tabela-global-exclusiva td, .tabela-global-exclusiva th, .tabela-global-exclusiva p, .tabela-global-exclusiva span {
         color: #000000 !important;
-        border: 2px solid #cbd5e1 !important;
-        border-radius: 8px !important;
+        font-weight: normal !important;
     }
     </style>
     """,
@@ -84,7 +88,7 @@ def obter_df_combinado():
         return df_combinado[ordem_colunas]
     return pd.DataFrame(columns=ordem_colunas)
 
-def gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo, df_combinado):
+def generar_pdf_reportlab(p1, p2, p3, p4, p5, saldo, df_combinado):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=20, leftMargin=20, topMargin=40, bottomMargin=40)
     story = []
@@ -162,8 +166,8 @@ def bloco_consolidado_geral():
     if not df_combinado.empty:
         df_visual = df_combinado.copy()
         
-        # Envolvendo a tabela global em uma classe CSS dedicada para ficar branca com letras pretas
-        st.markdown('<div class="tabela-global-container">', unsafe_allow_html=True)
+        # Injeção da div da tabela global (Preto no Branco)
+        st.markdown('<div class="tabela-global-exclusiva">', unsafe_allow_html=True)
         st.dataframe(df_visual, use_container_width=True, hide_index=True)
         st.markdown('</div>', unsafe_allow_html=True)
         
@@ -249,11 +253,11 @@ def bloco_cadastro():
         
         if st.form_submit_button("Salvar Operador", use_container_width=True):
             if nu and np:
-                # CORREÇÃO DA PERSISTÊNCIA: Injeta o operador diretamente na raiz da sessão ativa
+                # O usuário agora é persistido diretamente no objeto da sessão ativa globalmente
                 st.session_state.banco_usuarios[nu] = {"senha": np, "turno_fixo": nt, "role": "operador"}
-                st.success(f"Sucesso! Operador '{nu}' foi registrado no sistema e já pode efetuar login.")
+                st.success(f"Operador '{nu}' cadastrado com sucesso! Já pode realizar o login.")
             else:
-                st.error("Por favor, preencha o Usuário e a Senha.")
+                st.error("Por favor, preencha todos os campos obrigatórios.")
 
 def bloco_login():
     st.markdown('<div class="custom-box">', unsafe_allow_html=True)
