@@ -4,19 +4,19 @@ from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
 # -----------------------------------------------------------------------------
-# CONFIGURAÇÃO DE TEMA E INTERFACE ORIGINAL (PRETO E VERDE CLARO)
+# INTERFACE E ESTILIZAÇÃO COMPLETA (PRETO E VERDE CLARO)
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="Zion Operações", layout="wide")
 
 st.markdown(
     """
     <style>
-    /* Fundo escuro total do app e da barra lateral */
-    .stApp, [data-testid="stSidebar"] {
+    /* Fundo inteiramente preto */
+    .stApp, [data-testid="stSidebar"], div[data-testid="stExpander"] {
         background-color: #000000 !important;
     }
-    /* Textos, rótulos e títulos em verde brilhante */
-    h1, h2, h3, p, label, .stMarkdown, [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {
+    /* Todos os textos e rótulos em verde claro */
+    h1, h2, h3, p, label, .stMarkdown, [data-testid="stMetricLabel"], [data-testid="stMetricValue"] {
         color: #00FF66 !important;
     }
     /* Estilização dos botões pretos com contorno verde */
@@ -30,12 +30,17 @@ st.markdown(
     .stButton>button:hover {
         background-color: #00FF66 !important;
         color: #000000 !important;
+        border: 2px solid #00FF66 !important;
     }
-    /* Ajuste para inputs e campos de seleção */
+    /* Campos de entrada pretos com texto verde */
     input, select, div[data-baseweb="select"] {
-        background-color: #111111 !important;
+        background-color: #000000 !important;
         color: #00FF66 !important;
         border: 1px solid #00FF66 !important;
+    }
+    /* Tabelas em modo escuro */
+    .stDataFrame, div[data-testid="stTable"] {
+        background-color: #000000 !important;
     }
     </style>
     """,
@@ -43,18 +48,17 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
-# CONEXÃO AUTENTICADA COM O GOOGLE SHEETS
+# CONEXÃO DIRETA COM O GOOGLE SHEETS
 # -----------------------------------------------------------------------------
 try:
-    # Para que a gravação funcione, certifique-se de configurar a service_account nos Secrets do Streamlit
     conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception as e:
+except Exception:
     conn = None
 
 REFERENCIA_CONTRATUAL = 50000.0
 
 def carregar_dados_nuvem():
-    """Busca os dados em tempo real no Google Sheets."""
+    """Busca o histórico atualizado em tempo real na planilha Google."""
     if conn:
         try:
             df = conn.read(ttl=0)
@@ -71,7 +75,7 @@ def carregar_dados_nuvem():
     return pd.DataFrame()
 
 def atualizar_planilha_nuvem(df_novo):
-    """Grava o DataFrame completo de volta na planilha do Google Sheets."""
+    """Grava as atualizações diretamente na planilha Google."""
     if conn:
         try:
             conn.update(data=df_novo)
@@ -81,36 +85,37 @@ def atualizar_planilha_nuvem(df_novo):
             return False
     return False
 
+# Gerenciamento de estado estável da sessão
 if "dados_operacao" not in st.session_state:
     st.session_state.dados_operacao = carregar_dados_nuvem()
 
 df_atual = st.session_state.dados_operacao
 
 # -----------------------------------------------------------------------------
-# MENU LATERAL INTERFACE ORIGINAL
+# MENU LATERAL COM NAVEGAÇÃO ORIGINAL
 # -----------------------------------------------------------------------------
 st.sidebar.title("Zion Operações")
 st.sidebar.write("🟢 **Usuário:** admin (ADMIN)")
 
 if "menu_atual" not in st.session_state:
-    st.session_state.menu_atual = "Lançamentos"
+    st.session_state.menu_atual = "Lançamentos do Turno"
 
 if st.sidebar.button("Lançamentos do Turno", use_container_width=True):
-    st.session_state.menu_atual = "Lançamentos"
+    st.session_state.menu_atual = "Lançamentos do Turno"
 if st.sidebar.button("Global (Consolidado)", use_container_width=True):
-    st.session_state.menu_atual = "Global"
+    st.session_state.menu_atual = "Global (Consolidado)"
 if st.sidebar.button("Cadastrar Operador", use_container_width=True):
     st.session_state.menu_atual = "Cadastrar Operador"
 st.sidebar.button("Sair", use_container_width=True)
 
 st.sidebar.markdown("---")
-st.session_state.turno_trabalho = st.sidebar.selectbox("Visualizar Turno", ["1º TURNO", "2º TURNO"])
+turno_trabalho = st.sidebar.selectbox("Visualizar Turno", ["1º TURNO", "2º TURNO"])
 
 # -----------------------------------------------------------------------------
-# TELA 1: LANÇAMENTOS DO TURNO
+# TELA 1: LANÇAMENTOS DO TURNO (RESTAURADA E CORRIGIDA SEM O ERRO DO AUTOFOCUS)
 # -----------------------------------------------------------------------------
-if st.session_state.menu_atual == "Lançamentos":
-    st.header(f"Lançamentos Atuais - {st.session_state.turno_trabalho}")
+if st.session_state.menu_atual == "Lançamentos do Turno":
+    st.header(f"Lançamentos Atuais - {turno_trabalho}")
     
     with st.expander("🔹 Novo Lançamento (5 Porções)", expanded=True):
         col_data, col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(6)
@@ -118,8 +123,7 @@ if st.session_state.menu_atual == "Lançamentos":
         with col_data:
             data_lanc = st.date_input("Data", value=datetime.now())
         with col_p1:
-            # autofocus=True faz o cursor iniciar piscando neste campo pronto para colocar a tonelada
-            p1 = st.number_input("Porção 1 (t)", min_value=0.0, step=50.0, value=0.0, autofocus=True)
+            p1 = st.number_input("Porção 1 (t)", min_value=0.0, step=50.0, value=0.0)
         with col_p2:
             p2 = st.number_input("Porção 2 (t)", min_value=0.0, step=50.0, value=0.0)
         with col_p3:
@@ -135,7 +139,7 @@ if st.session_state.menu_atual == "Lançamentos":
         saldo_lancamento = p1 + p2 + p3 + p4 + p5
         
         novo_registro = {
-            "Turno": st.session_state.turno_trabalho,
+            "Turno": turno_trabalho,
             "Dia": data_lanc.strftime("%d/%m/%Y"),
             "Porção 1": p1,
             "Porção 2": p2,
@@ -152,23 +156,45 @@ if st.session_state.menu_atual == "Lançamentos":
         
         if atualizar_planilha_nuvem(df_atualizado):
             st.session_state.dados_operacao = df_atualizado
-            st.success("Lançamento gravado com sucesso no Google Sheets! 🚀")
+            st.success("Lançamento gravado diretamente na Planilha Google! 🚀")
             st.rerun()
 
     st.subheader("Histórico do Turno")
     if not df_atual.empty and "Turno" in df_atual.columns:
-        df_turno = df_atual[df_atual["Turno"] == st.session_state.turno_trabalho]
+        df_turno = df_atual[df_atual["Turno"] == turno_trabalho]
         if not df_turno.empty:
             st.dataframe(df_turno, use_container_width=True, hide_index=True)
         else:
-            st.info(f"Nenhum registro lançado ainda para o {st.session_state.turno_trabalho}.")
+            st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
     else:
-        st.info(f"Nenhum registro lançado ainda para o {st.session_state.turno_trabalho}.")
+        st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
+
+    # Bloco original inferior de seleção e edição de registros
+    st.markdown("---")
+    if not df_atual.empty and "Turno" in df_atual.columns:
+        df_turno_edit = df_atual[df_atual["Turno"] == turno_trabalho]
+        if not df_turno_edit.empty:
+            opcoes_edicao = []
+            indices_reais = []
+            for idx, row in df_turno_edit.iterrows():
+                opcoes_edicao.append(f"Linha {idx} - Data: {row['Dia']} (Saldo: {row['Saldo']})")
+                indices_reais.append(idx)
+                
+            selecionado = st.selectbox("Selecione um lançamento para editar:", opcoes_edicao)
+            if selecionado:
+                posicao_lista = opcoes_edicao.index(selecionado)
+                st.session_state.edit_index = indices_reais[posicao_lista]
+                if st.session_state.edit_index < len(df_atual):
+                    try:
+                        row_edit = df_atual.iloc[st.session_state.edit_index]
+                        st.button("Editar Linha", use_container_width=True)
+                    except IndexError:
+                        pass
 
 # -----------------------------------------------------------------------------
-# TELA 2: GLOBAL (CONSOLIDADO)
+# TELA 2: GLOBAL (CONSOLIDADO ORIGINAL)
 # -----------------------------------------------------------------------------
-elif st.session_state.menu_atual == "Global":
+elif st.session_state.menu_atual == "Global (Consolidado)":
     st.header("Painel Gerencial Global (5 Porções)")
     
     if not df_atual.empty:
