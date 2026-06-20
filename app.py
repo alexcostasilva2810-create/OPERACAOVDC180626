@@ -32,7 +32,6 @@ st.markdown(
     .stButton>button:hover {
         background-color: #00FF66 !important;
         color: #000000 !important;
-        border: 2px solid #00FF66 !important;
     }
     input, select, div[data-baseweb="select"] {
         background-color: #000000 !important;
@@ -62,7 +61,6 @@ if "cargo_atual" not in st.session_state:
 if "menu_atual" not in st.session_state:
     st.session_state.menu_atual = "Lançamentos do Turno"
 
-# Dicionário de usuários fixos do sistema (Com os novos adicionados)
 if "usuarios_db" not in st.session_state:
     st.session_state.usuarios_db = {
         "admin": {"senha": "10000", "cargo": "admin", "turno": "Todos"},
@@ -87,16 +85,16 @@ def carregar_dados_nuvem():
         try:
             df = conn.read(ttl=0)
             if df.empty:
-                return pd.DataFrame(columns=["Turno", "Dia", "Porção 1", "Porção 2", "Porção 3", "Porção 4", "Porção 5", "Saldo", "Usuário", "Hora do Registro"])
+                return pd.DataFrame(columns=["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"])
             
-            colunas_numéricas = ["Porção 1", "Porção 2", "Porção 3", "Porção 4", "Porção 5", "Saldo"]
+            colunas_numéricas = ["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo"]
             for col in colunas_numéricas:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
             return df
         except Exception:
-            return pd.DataFrame(columns=["Turno", "Dia", "Porção 1", "Porção 2", "Porção 3", "Porção 4", "Porção 5", "Saldo", "Usuário", "Hora do Registro"])
-    return pd.DataFrame()
+            pass
+    return pd.DataFrame(columns=["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"])
 
 def atualizar_planilha_nuvem(df_novo):
     if conn:
@@ -107,10 +105,9 @@ def atualizar_planilha_nuvem(df_novo):
             return False
     return False
 
+# Inicializa os dados na sessão
 if "dados_operacao" not in st.session_state:
     st.session_state.dados_operacao = carregar_dados_nuvem()
-
-df_atual = st.session_state.dados_operacao
 
 # -----------------------------------------------------------------------------
 # TELA DE LOGIN (VÍDEO 2)
@@ -147,13 +144,14 @@ if not st.session_state.logged_in:
 # INTERFACE DO SISTEMA LOGADO
 # -----------------------------------------------------------------------------
 else:
+    df_atual = st.session_state.dados_operacao
+
     st.sidebar.title("Zion Operações")
     st.sidebar.write(f"🟢 **Usuário:** {st.session_state.usuario_atual} ({st.session_state.cargo_atual.upper()})")
     
     if st.sidebar.button("Lançamentos do Turno", use_container_width=True):
         st.session_state.menu_atual = "Lançamentos do Turno"
         
-    # GESTÃO DE ACESSO: Apenas quem é cargo 'admin' visualiza estas abas (admin e Alex)
     if st.session_state.cargo_atual == "admin":
         if st.sidebar.button("Global (Consolidado)", use_container_width=True):
             st.session_state.menu_atual = "Global (Consolidado)"
@@ -168,12 +166,10 @@ else:
 
     st.sidebar.markdown("---")
     
-    # GESTÃO DE ACESSO: Define ou limita o turno baseado no usuário logado
     user_info = st.session_state.usuarios_db[st.session_state.usuario_atual]
     if user_info["turno"] != "Todos":
         turno_trabalho = user_info["turno"]
     else:
-        # Se for admin, o selectbox nativo reaparece para ele alternar livremente
         turno_trabalho = st.sidebar.selectbox("Visualizar Turno", ["1º TURNO", "2º TURNO"])
 
     # -------------------------------------------------------------------------
@@ -182,21 +178,21 @@ else:
     if st.session_state.menu_atual == "Lançamentos do Turno":
         st.header(f"Lançamentos Atuais - {turno_trabalho}")
         
-        with st.expander("▼ Novo Lançamento (5 Porções)", expanded=True):
+        with st.expander("▼ Novo Lançamento (5 Porões)", expanded=True):
             col_data, col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(6)
             
             with col_data:
                 data_lanc = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY")
             with col_p1:
-                p1 = st.number_input("Porção 1 (t)", min_value=0.0, step=50.0, value=0.0)
+                p1 = st.number_input("Porão 1 (t)", min_value=0.0, step=50.0, value=0.0)
             with col_p2:
-                p2 = st.number_input("Porção 2 (t)", min_value=0.0, step=50.0, value=0.0)
+                p2 = st.number_input("Porão 2 (t)", min_value=0.0, step=50.0, value=0.0)
             with col_p3:
-                p3 = st.number_input("Porção 3 (t)", min_value=0.0, step=50.0, value=0.0)
+                p3 = st.number_input("Porão 3 (t)", min_value=0.0, step=50.0, value=0.0)
             with col_p4:
-                p4 = st.number_input("Porção 4 (t)", min_value=0.0, step=50.0, value=0.0)
+                p4 = st.number_input("Porão 4 (t)", min_value=0.0, step=50.0, value=0.0)
             with col_p5:
-                p5 = st.number_input("Porção 5 (t)", min_value=0.0, step=50.0, value=0.0)
+                p5 = st.number_input("Porão 5 (t)", min_value=0.0, step=50.0, value=0.0)
                 
             btn_gravar = st.button("Gravar Lançamento", type="primary", use_container_width=True)
             
@@ -206,23 +202,23 @@ else:
             novo_registro = {
                 "Turno": turno_trabalho,
                 "Dia": data_lanc.strftime("%d/%m/%Y"),
-                "Porção 1": p1,
-                "Porção 2": p2,
-                "Porção 3": p3,
-                "Porção 4": p4,
-                "Porção 5": p5,
+                "Porão 1": p1,
+                "Porão 2": p2,
+                "Porão 3": p3,
+                "Porão 4": p4,
+                "Porão 5": p5,
                 "Saldo": saldo_lancamento,
                 "Usuário": st.session_state.usuario_atual,
                 "Hora do Registro": datetime.now().strftime("%H:%M:%S")
             }
             
-            df_fresco = carregar_dados_nuvem()
-            df_atualizado = pd.concat([df_fresco, pd.DataFrame([novo_registro])], ignore_index=True)
+            novo_df_linha = pd.DataFrame([novo_registro])
+            st.session_state.dados_operacao = pd.concat([st.session_state.dados_operacao, novo_df_linha], ignore_index=True)
             
-            if atualizar_planilha_nuvem(df_atualizado):
-                st.session_state.dados_operacao = df_atualizado
-                st.success("Lançamento gravado diretamente na Planilha Google! 🚀")
-                st.rerun()
+            atualizar_planilha_nuvem(st.session_state.dados_operacao)
+            
+            st.success("Lançamento efetuado com sucesso! 🚀")
+            st.rerun()
 
         st.subheader("Histórico do Turno")
         if not df_atual.empty and "Turno" in df_atual.columns:
@@ -247,14 +243,14 @@ else:
     # MÓDULO GLOBAL (Apenas Admins acessam)
     # -------------------------------------------------------------------------
     elif st.session_state.menu_atual == "Global (Consolidado)" and st.session_state.cargo_atual == "admin":
-        st.header("Painel Gerencial Global (5 Porções)")
+        st.header("Painel Gerencial Global (5 Porões)")
         
         if not df_atual.empty:
-            total_p1 = df_atual["Porção 1"].sum() if "Porção 1" in df_atual.columns else 0.0
-            total_p2 = df_atual["Porção 2"].sum() if "Porção 2" in df_atual.columns else 0.0
-            total_p3 = df_atual["Porção 3"].sum() if "Porção 3" in df_atual.columns else 0.0
-            total_p4 = df_atual["Porção 4"].sum() if "Porção 4" in df_atual.columns else 0.0
-            total_p5 = df_atual["Porção 5"].sum() if "Porção 5" in df_atual.columns else 0.0
+            total_p1 = df_atual["Porão 1"].sum() if "Porão 1" in df_atual.columns else 0.0
+            total_p2 = df_atual["Porão 2"].sum() if "Porão 2" in df_atual.columns else 0.0
+            total_p3 = df_atual["Porão 3"].sum() if "Porão 3" in df_atual.columns else 0.0
+            total_p4 = df_atual["Porão 4"].sum() if "Porão 4" in df_atual.columns else 0.0
+            total_p5 = df_atual["Porão 5"].sum() if "Porão 5" in df_atual.columns else 0.0
             total_lancado = df_atual["Saldo"].sum() if "Saldo" in df_atual.columns else 0.0
         else:
             total_p1 = total_p2 = total_p3 = total_p4 = total_p5 = total_lancado = 0.0
@@ -262,11 +258,11 @@ else:
         quanto_falta = max(0.0, REFERENCIA_CONTRATUAL - total_lancado)
 
         col_m1, col_m2, col_m3, col_m4, col_m5, col_mt = st.columns(6)
-        col_m1.metric("Total Porção 1", f"{total_p1:,.0f} t".replace(",", "."))
-        col_m2.metric("Total Porção 2", f"{total_p2:,.0f} t".replace(",", "."))
-        col_m3.metric("Total Porção 3", f"{total_p3:,.0f} t".replace(",", "."))
-        col_m4.metric("Total Porção 4", f"{total_p4:,.0f} t".replace(",", "."))
-        col_m5.metric("Total Porção 5", f"{total_p5:,.0f} t".replace(",", "."))
+        col_m1.metric("Total Porão 1", f"{total_p1:,.0f} t".replace(",", "."))
+        col_m2.metric("Total Porão 2", f"{total_p2:,.0f} t".replace(",", "."))
+        col_m3.metric("Total Porão 3", f"{total_p3:,.0f} t".replace(",", "."))
+        col_m4.metric("Total Porão 4", f"{total_p4:,.0f} t".replace(",", "."))
+        col_m5.metric("Total Porão 5", f"{total_p5:,.0f} t".replace(",", "."))
         col_mt.metric("TOTAL JÁ LANÇADO", f"{total_lancado:,.0f} t".replace(",", "."))
         
         col_ref, col_falta = st.columns(2)
@@ -295,7 +291,6 @@ else:
         nova_senha = st.text_input("Definir Senha", type="password", key="cad_pass")
         cargo_selecionado = st.selectbox("Cargo", ["operador", "admin"], key="cad_cargo")
         
-        # Turno fixo se adapta com base no cargo escolhido
         if cargo_selecionado == "admin":
             turno_fixo = "Todos"
             st.write("📌 *Administradores possuem acesso global a ambos os turnos.*")
@@ -304,7 +299,6 @@ else:
         
         if st.button("Salvar Operador", use_container_width=True):
             if novo_user and nova_senha:
-                # Salva o novo usuário dinamicamente no banco da sessão
                 st.session_state.usuarios_db[novo_user] = {
                     "senha": nova_senha,
                     "cargo": cargo_selecionado,
