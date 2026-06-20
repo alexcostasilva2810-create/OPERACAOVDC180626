@@ -11,44 +11,7 @@ from streamlit_gsheets import GSheetsConnection
 # Configuração da página
 st.set_page_config(page_title="Zion Tecnologia - Gestão Portuária", page_icon="🚢", layout="wide")
 
-# Estilização CSS para forçar textos em preto e remover decorações excessivas
-st.markdown(
-    """
-    <style>
-    /* Fundo da aplicação */
-    .stApp { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); }
-    
-    /* Forçar cor preta em todos os textos comuns, labels e descrições */
-    p, label, .stMarkdown p, .stSelectbox label, .stInputField label, .stDateInput label { 
-        color: #000000 !important; 
-        font-weight: 600 !important; 
-    }
-    
-    /* Customização dos títulos principais */
-    h1, h2, h3, h4 { color: #0f172a !important; font-weight: bold !important; }
-    
-    /* Box customizado para o Login */
-    .custom-box {
-        background-color: #ffffff;
-        padding: 2rem;
-        border-radius: 12px;
-        border: 1px solid #cbd5e1;
-        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-        margin-bottom: 1rem;
-    }
-    
-    /* Ajuste para as tabelas nativas ficarem bem legíveis */
-    .stDataFrame {
-        border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        background-color: #ffffff;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Inicialização de dados no session_state
+# Inicialização persistente do banco de usuários na sessão
 if 'banco_usuarios' not in st.session_state:
     st.session_state.banco_usuarios = {
         "admin": {"senha": "1234", "role": "admin"},
@@ -56,6 +19,38 @@ if 'banco_usuarios' not in st.session_state:
         "alex": {"senha": "zion2026", "turno_fixo": "1º TURNO", "role": "operador"},
         "Rubens Ferreira": {"senha": "8036", "turno_fixo": "2º TURNO", "role": "operador"}
     }
+
+# Estilização CSS: Mantém o tema escuro/verde original e aplica branco/preto APENAS na tabela global
+st.markdown(
+    """
+    <style>
+    /* Tema Escuro Geral do Sistema */
+    .stApp { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
+    p, label, .stMarkdown p, .stSelectbox label, .stInputField label, .stDateInput label { 
+        color: #00ff66 !important; 
+        font-weight: bold !important; 
+    }
+    h1, h2, h3, h4 { color: #38bdf8 !important; font-weight: bold !important; }
+    
+    .custom-box {
+        background-color: rgba(15, 23, 42, 0.8);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 2px solid #00ff66;
+        margin-bottom: 1rem;
+    }
+
+    /* Modificação EXCLUSIVA para a tabela do histórico da Visão Global */
+    .tabela-global-container .stDataFrame {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 2px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user_name' not in st.session_state: st.session_state.user_name = ""
@@ -166,7 +161,11 @@ def bloco_consolidado_geral():
     
     if not df_combinado.empty:
         df_visual = df_combinado.copy()
+        
+        # Envolvendo a tabela global em uma classe CSS dedicada para ficar branca com letras pretas
+        st.markdown('<div class="tabela-global-container">', unsafe_allow_html=True)
         st.dataframe(df_visual, use_container_width=True, hide_index=True)
+        st.markdown('</div>', unsafe_allow_html=True)
         
         pdf_data = gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo_geral, df_combinado)
         st.download_button(
@@ -243,13 +242,18 @@ def bloco_painel_poroes(turno_atual):
 
 def bloco_cadastro():
     st.markdown("<h2>Cadastrar Novo Operador</h2>", unsafe_allow_html=True)
-    with st.form("form_cadastro"):
+    with st.form("form_cadastro", clear_on_submit=True):
         nu = st.text_input("Definir Usuário")
         np = st.text_input("Definir Senha", type="password")
         nt = st.selectbox("Turno Fixo", ["1º TURNO", "2º TURNO"])
+        
         if st.form_submit_button("Salvar Operador", use_container_width=True):
-            st.session_state.banco_usuarios[nu] = {"senha": np, "turno_fixo": nt, "role": "operador"}
-            st.success(f"Operador '{nu}' cadastrado!")
+            if nu and np:
+                # CORREÇÃO DA PERSISTÊNCIA: Injeta o operador diretamente na raiz da sessão ativa
+                st.session_state.banco_usuarios[nu] = {"senha": np, "turno_fixo": nt, "role": "operador"}
+                st.success(f"Sucesso! Operador '{nu}' foi registrado no sistema e já pode efetuar login.")
+            else:
+                st.error("Por favor, preencha o Usuário e a Senha.")
 
 def bloco_login():
     st.markdown('<div class="custom-box">', unsafe_allow_html=True)
