@@ -48,7 +48,7 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
-# CONTROLE DE ESTADO DA SESSÃO
+# CONTROLE DE ESTADO DA SESSÃO E BANCO DE USUÁRIOS
 # -----------------------------------------------------------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -56,8 +56,21 @@ if "logged_in" not in st.session_state:
 if "usuario_atual" not in st.session_state:
     st.session_state.usuario_atual = ""
 
+if "cargo_atual" not in st.session_state:
+    st.session_state.cargo_atual = ""
+
 if "menu_atual" not in st.session_state:
     st.session_state.menu_atual = "Lançamentos do Turno"
+
+# Dicionário de usuários fixos do sistema (Com os novos adicionados)
+if "usuarios_db" not in st.session_state:
+    st.session_state.usuarios_db = {
+        "admin": {"senha": "10000", "cargo": "admin", "turno": "Todos"},
+        "Alex": {"senha": "1234", "cargo": "admin", "turno": "Todos"},
+        "operador1": {"senha": "111", "cargo": "operador", "turno": "1º TURNO"},
+        "operador2": {"senha": "222", "cargo": "operador", "turno": "2º TURNO"},
+        "chico": {"senha": "3322", "cargo": "operador", "turno": "1º TURNO"},
+    }
 
 REFERENCIA_CONTRATUAL = 50000.0
 
@@ -121,17 +134,11 @@ if not st.session_state.logged_in:
         pass_input = st.text_input("Senha", type="password", key="login_pass")
         
         if st.button("Entrar no Sistema", use_container_width=True):
-            if user_input == "admin" and pass_input == "10000":
+            db = st.session_state.usuarios_db
+            if user_input in db and db[user_input]["senha"] == pass_input:
                 st.session_state.logged_in = True
-                st.session_state.usuario_atual = "admin"
-                st.rerun()
-            elif user_input == "operador1" and pass_input == "111":
-                st.session_state.logged_in = True
-                st.session_state.usuario_atual = "operador1"
-                st.rerun()
-            elif user_input == "operador2" and pass_input == "222":
-                st.session_state.logged_in = True
-                st.session_state.usuario_atual = "operador2"
+                st.session_state.usuario_atual = user_input
+                st.session_state.cargo_atual = db[user_input]["cargo"]
                 st.rerun()
             else:
                 st.error("Usuário ou senha incorretos.")
@@ -141,13 +148,13 @@ if not st.session_state.logged_in:
 # -----------------------------------------------------------------------------
 else:
     st.sidebar.title("Zion Operações")
-    st.sidebar.write(f"🟢 **Usuário:** {st.session_state.usuario_atual}")
+    st.sidebar.write(f"🟢 **Usuário:** {st.session_state.usuario_atual} ({st.session_state.cargo_atual.upper()})")
     
     if st.sidebar.button("Lançamentos do Turno", use_container_width=True):
         st.session_state.menu_atual = "Lançamentos do Turno"
         
-    # GESTÃO DE ACESSO: Apenas administrador visualiza estas abas
-    if st.session_state.usuario_atual == "admin":
+    # GESTÃO DE ACESSO: Apenas quem é cargo 'admin' visualiza estas abas (admin e Alex)
+    if st.session_state.cargo_atual == "admin":
         if st.sidebar.button("Global (Consolidado)", use_container_width=True):
             st.session_state.menu_atual = "Global (Consolidado)"
         if st.sidebar.button("Cadastrar Operador", use_container_width=True):
@@ -156,17 +163,17 @@ else:
     if st.sidebar.button("Sair", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.usuario_atual = ""
+        st.session_state.cargo_atual = ""
         st.rerun()
 
     st.sidebar.markdown("---")
     
-    # GESTÃO DE ACESSO: Define o turno estritamente pelo tipo de operador logado
-    if st.session_state.usuario_atual == "operador1":
-        turno_trabalho = "1º TURNO"
-    elif st.session_state.usuario_atual == "operador2":
-        turno_trabalho = "2º TURNO"
+    # GESTÃO DE ACESSO: Define ou limita o turno baseado no usuário logado
+    user_info = st.session_state.usuarios_db[st.session_state.usuario_atual]
+    if user_info["turno"] != "Todos":
+        turno_trabalho = user_info["turno"]
     else:
-        # Se for admin, pode escolher qualquer um dos dois turnos livremente
+        # Se for admin, o selectbox nativo reaparece para ele alternar livremente
         turno_trabalho = st.sidebar.selectbox("Visualizar Turno", ["1º TURNO", "2º TURNO"])
 
     # -------------------------------------------------------------------------
@@ -237,9 +244,9 @@ else:
                     st.button("Editar Linha", use_container_width=True)
 
     # -------------------------------------------------------------------------
-    # MÓDULO GLOBAL (Apenas Admin acessa)
+    # MÓDULO GLOBAL (Apenas Admins acessam)
     # -------------------------------------------------------------------------
-    elif st.session_state.menu_atual == "Global (Consolidado)" and st.session_state.usuario_atual == "admin":
+    elif st.session_state.menu_atual == "Global (Consolidado)" and st.session_state.cargo_atual == "admin":
         st.header("Painel Gerencial Global (5 Porções)")
         
         if not df_atual.empty:
@@ -276,21 +283,33 @@ else:
         else:
             st.info("Nenhum dado lançado nos turnos até o momento.")
             
-        # O botão de PDF abaixo usa de forma transparente os módulos ReportLab importados no topo
         st.button("Exportar Relatório Global em PDF", type="secondary", use_container_width=True)
 
     # -------------------------------------------------------------------------
-    # MÓDULO CADASTRO DE OPERADORES (Apenas Admin acessa)
+    # MÓDULO CADASTRO DE OPERADORES (Apenas Admins acessam)
     # -------------------------------------------------------------------------
-    elif st.session_state.menu_atual == "Cadastrar Operador" and st.session_state.usuario_atual == "admin":
+    elif st.session_state.menu_atual == "Cadastrar Operador" and st.session_state.cargo_atual == "admin":
         st.header("Cadastrar Novo Operador")
         
         novo_user = st.text_input("Definir Usuário", key="cad_user")
         nova_senha = st.text_input("Definir Senha", type="password", key="cad_pass")
-        turno_fixo = st.selectbox("Turno Fixo", ["1º TURNO", "2º TURNO"], key="cad_turno")
+        cargo_selecionado = st.selectbox("Cargo", ["operador", "admin"], key="cad_cargo")
+        
+        # Turno fixo se adapta com base no cargo escolhido
+        if cargo_selecionado == "admin":
+            turno_fixo = "Todos"
+            st.write("📌 *Administradores possuem acesso global a ambos os turnos.*")
+        else:
+            turno_fixo = st.selectbox("Turno Fixo", ["1º TURNO", "2º TURNO"], key="cad_turno")
         
         if st.button("Salvar Operador", use_container_width=True):
             if novo_user and nova_senha:
-                st.success(f"Operador {novo_user} cadastrado com sucesso (Local)!")
+                # Salva o novo usuário dinamicamente no banco da sessão
+                st.session_state.usuarios_db[novo_user] = {
+                    "senha": nova_senha,
+                    "cargo": cargo_selecionado,
+                    "turno": turno_fixo
+                }
+                st.success(f"Usuário '{novo_user}' cadastrado com sucesso! Ele já pode fazer login.")
             else:
                 st.error("Preencha todos os campos para cadastrar.")
