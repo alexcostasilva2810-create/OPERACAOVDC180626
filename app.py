@@ -45,31 +45,31 @@ st.markdown(
     .zion-header {
         text-align: center;
         font-family: 'Helvetica Neue', sans-serif;
-        font-size: 50px;
+        font-size: 55px;
         font-weight: 900;
-        letter-spacing: 8px;
+        letter-spacing: 10px;
         color: #00ff66;
-        margin-top: 2rem;
-        margin-bottom: 0.5rem;
+        margin-top: 3rem;
+        margin-bottom: 0px;
     }
     
     .zion-subtitle {
         text-align: center;
-        font-size: 14px;
-        letter-spacing: 3px;
+        font-size: 13px;
+        letter-spacing: 4px;
         color: #00ff66;
-        margin-bottom: 2rem;
+        margin-top: 0px;
+        margin-bottom: 2.5rem;
         text-transform: uppercase;
         opacity: 0.8;
     }
 
-    /* Box customizado do Login (Compacto e centralizado) */
-    .custom-box {
-        background-color: #000000;
-        padding: 2rem;
-        border-radius: 12px;
+    /* Container customizado do Login (Compacto e sem bordas adicionais vazias) */
+    .login-container {
         border: 2px solid #00ff66;
-        margin-top: 1rem;
+        border-radius: 12px;
+        padding: 25px;
+        background-color: #000000;
     }
 
     /* Letras de todos os botões do menu lateral em PRETO */
@@ -309,7 +309,6 @@ def bloco_painel_poroes(turno_atual):
         df_atual_estilizado = df_atual.style.set_properties(**{'text-align': 'center'})
         st.dataframe(df_atual_estilizado, use_container_width=True, hide_index=True)
         
-        # Correção da expressão generator com parênteses obrigatórios para evitar SyntaxError
         linhas_opcoes = [f"Linha {i} - Data: {row['Dia']} (Saldo: {row['Saldo']}t)" for i, row in df_atual.iterrows()]
         col_ed, col_btn_ed = st.columns([4, 1])
         with col_ed:
@@ -337,21 +336,27 @@ def bloco_cadastro():
                 st.error("Preencha Usuário e Senha.")
 
 def bloco_login():
-    # Nome ZION grande e elegante no topo da página
+    # Cabeçalho limpo com ZION
     st.markdown('<div class="zion-header">ZION</div>', unsafe_allow_html=True)
     st.markdown('<div class="zion-subtitle">Tecnologia Portuária</div>', unsafe_allow_html=True)
     
-    # Colunas criadas para comprimir a caixa de login e deixá-la compacta no centro
+    # Grid para centralização perfeita e compacta do box
     col_esq, col_centro, col_dir = st.columns([1.5, 1.2, 1.5])
     
     with col_centro:
-        st.markdown('<div class="custom-box">', unsafe_allow_html=True)
-        st.markdown("<h4 style='text-align: center; margin-bottom: 1.5rem;'>Login de Acesso</h4>", unsafe_allow_html=True)
-        u = st.text_input("Nome de Usuário", placeholder="Digite seu usuário")
-        p = st.text_input("Senha", type="password", placeholder="Digite sua senha")
+        # Iniciando diretamente a div interna sem chamadas extras de markdown vazias
+        st.markdown(
+            '<div class="login-container">'
+            '<h4 style="text-align: center; margin-top: 0px; margin-bottom: 20px; color: #00ff66;">Login de Acesso</h4>', 
+            unsafe_allow_html=True
+        )
         
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Entrar no Sistema", use_container_width=True):
+        u = st.text_input("Nome de Usuário", placeholder="Digite seu usuário", key="login_user")
+        p = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="login_pass")
+        
+        st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+        
+        if st.button("Entrar no Sistema", use_container_width=True, key="login_submit"):
             banco = st.session_state.banco_usuarios
             if u in banco and banco[u]["senha"] == p:
                 st.session_state.logged_in = True
@@ -362,6 +367,7 @@ def bloco_login():
                 st.rerun()
             else:
                 st.error("Dados inválidos.")
+                
         st.markdown('</div>', unsafe_allow_html=True)
 
 def main():
