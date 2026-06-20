@@ -11,6 +11,9 @@ from streamlit_gsheets import GSheetsConnection
 # Configuração da página
 st.set_page_config(page_title="Zion Tecnologia - Gestão Portuária", page_icon="🚢", layout="wide")
 
+# Conexão única com o Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
+
 # 1. INICIALIZAÇÃO DO BANCO DE USUÁRIOS
 if 'banco_usuarios' not in st.session_state:
     st.session_state.banco_usuarios = {
@@ -19,6 +22,27 @@ if 'banco_usuarios' not in st.session_state:
         "alex": {"senha": "zion2026", "turno_fixo": "1º TURNO", "role": "operador"},
         "Rubens Ferreira": {"senha": "8036", "turno_fixo": "2º TURNO", "role": "operador"}
     }
+
+# FUNÇÃO PARA PUXAR DADOS DIRETAMENTE DO GOOGLE SHEETS
+def carregar_dados_sheets():
+    try:
+        # Lê a aba 'Global' limpando qualquer cache antigo
+        df = conn.read(worksheet="Global", ttl=0)
+        if df.empty:
+            colunas = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
+            return pd.DataFrame(columns=colunas)
+        return df
+    except Exception:
+        colunas = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
+        return pd.DataFrame(columns=colunas)
+
+# FUNÇÃO PARA ENVIAR DADOS DIRETAMENTE AO GOOGLE SHEETS
+def salvar_dados_sheets(df):
+    try:
+        conn.update(worksheet="Global", data=df)
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"Erro ao salvar na planilha: {e}")
 
 # FUNÇÃO PARA PEGAR A HORA ATUAL DO BRASIL
 def obter_hora_atual_brasil():
@@ -29,70 +53,28 @@ def obter_hora_atual_brasil():
 st.markdown(
     """
     <style>
-    /* TODO O SISTEMA: Fundo preto */
-    .stApp, [data-testid="stSidebar"] { 
-        background-color: #000000 !important; 
-    }
-    
-    /* Textos do sistema em verde */
+    .stApp, [data-testid="stSidebar"] { background-color: #000000 !important; }
     p, label, .stMarkdown p, .stSelectbox label, .stInputField label, .stDateInput label { 
-        color: #00ff66 !important; 
-        font-weight: bold !important; 
+        color: #00ff66 !important; font-weight: bold !important; 
     }
     h1, h2, h3, h4 { color: #00ff66 !important; font-weight: bold !important; }
     
-    /* Título ZION Elegante no Topo */
     .zion-header {
-        text-align: center;
-        font-family: 'Helvetica Neue', sans-serif;
-        font-size: 55px;
-        font-weight: 900;
-        letter-spacing: 10px;
-        color: #00ff66;
-        margin-top: 3rem;
-        margin-bottom: 0px;
+        text-align: center; font-family: 'Helvetica Neue', sans-serif;
+        font-size: 55px; font-weight: 900; letter-spacing: 10px; color: #00ff66;
+        margin-top: 3rem; margin-bottom: 0px;
     }
-    
     .zion-subtitle {
-        text-align: center;
-        font-size: 13px;
-        letter-spacing: 4px;
-        color: #00ff66;
-        margin-top: 0px;
-        margin-bottom: 2.5rem;
-        text-transform: uppercase;
-        opacity: 0.8;
+        text-align: center; font-size: 13px; letter-spacing: 4px; color: #00ff66;
+        margin-top: 0px; margin-bottom: 2.5rem; text-transform: uppercase; opacity: 0.8;
     }
-
-    /* Container customizado do Login */
-    .login-container {
-        border: 2px solid #00ff66;
-        border-radius: 12px;
-        padding: 25px;
-        background-color: #000000;
-    }
-
-    /* Letras de todos os botões do menu lateral em PRETO */
-    [data-testid="stSidebar"] button p {
-        color: #000000 !important;
-        font-weight: bold !important;
-    }
-    
-    /* Estilo do botão de navegação lateral (Fundo Branco) */
-    [data-testid="stSidebar"] button {
-        background-color: #ffffff !important;
-        border: 1px solid #00ff66 !important;
-    }
-
-    /* Tabelas e Editores (Fundo branco, letras pretas e CENTRALIZADO) */
+    .login-container { border: 2px solid #00ff66; border-radius: 12px; padding: 25px; background-color: #000000; }
+    [data-testid="stSidebar"] button p { color: #000000 !important; font-weight: bold !important; }
+    [data-testid="stSidebar"] button { background-color: #ffffff !important; border: 1px solid #00ff66 !important; }
     .tabela-global-exclusiva td, .tabela-global-exclusiva th, .tabela-global-exclusiva p, .tabela-global-exclusiva span {
-        color: #000000 !important;
-        font-weight: normal !important;
-        text-align: center !important;
+        color: #000000 !important; font-weight: normal !important; text-align: center !important;
     }
-    [data-testid="stTable"] td, [data-testid="stDataFrame"] td, [data-testid="stDataEditor"] td {
-        text-align: center !important;
-    }
+    [data-testid="stTable"] td, [data-testid="stDataFrame"] td, [data-testid="stDataEditor"] td { text-align: center !important; }
     </style>
     """,
     unsafe_allow_html=True
@@ -103,44 +85,10 @@ if 'user_name' not in st.session_state: st.session_state.user_name = ""
 if 'turno_trabalho' not in st.session_state: st.session_state.turno_trabalho = "1º TURNO"
 if 'role' not in st.session_state: st.session_state.role = "operador"
 if 'menu_atual' not in st.session_state: st.session_state.menu_atual = "Lançamentos"
-
-colunas = ["Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuario", "Hora"]
-if 'tabela_turno_1' not in st.session_state: st.session_state.tabela_turno_1 = pd.DataFrame(columns=colunas)
-if 'tabela_turno_2' not in st.session_state: st.session_state.tabela_turno_2 = pd.DataFrame(columns=colunas)
 if 'edit_mode' not in st.session_state: st.session_state.edit_mode = False
 if 'edit_index' not in st.session_state: st.session_state.edit_index = None
 
-def sincronizar_visao_global_com_sheets(df_global_atual):
-    try:
-        # Força a criação de uma conexão limpa com o Google Sheets
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df_salvar = df_global_atual.copy()
-        
-        # Mapeia as colunas do seu DataFrame local com os cabeçalhos exatos da sua planilha online
-        df_salvar.columns = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
-        
-        # Atualiza a Worksheet 'Global' e força a limpeza de cache local do Streamlit imediatamente
-        conn.update(worksheet="Global", data=df_salvar)
-        st.cache_data.clear() # <- CRUCIAL: Limpa a memória temporária para enviar instantaneamente!
-    except Exception as e:
-        st.error(f"Erro ao salvar na planilha: {e}")
-
-def obter_df_combinado():
-    df1 = st.session_state.tabela_turno_1.copy()
-    df1["Turno"] = "1º TURNO"
-    df1["orig_index"] = df1.index
-    
-    df2 = st.session_state.tabela_turno_2.copy()
-    df2["Turno"] = "2º TURNO"
-    df2["orig_index"] = df2.index
-    
-    df_combinado = pd.concat([df1, df2], ignore_index=True)
-    ordem_colunas = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuario", "Hora", "orig_index"]
-    if not df_combinado.empty:
-        return df_combinado[ordem_colunas]
-    return pd.DataFrame(columns=ordem_colunas)
-
-def gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo, df_combinado):
+def gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo, df_global):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=20, leftMargin=20, topMargin=40, bottomMargin=40)
     story = []
@@ -165,11 +113,11 @@ def gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo, df_combinado):
     story.append(Spacer(1, 15))
     
     dados_tabela = [['Turno', 'Data', 'P1', 'P2', 'P3', 'P4', 'P5', 'Saldo', 'Usuário', 'Hora']]
-    for _, row in df_combinado.iterrows():
+    for _, row in df_global.iterrows():
         dados_tabela.append([
             str(row['Turno']), str(row['Dia']), f"{int(row['Porão 1'])} t", f"{int(row['Porão 2'])} t", 
             f"{int(row['Porão 3'])} t", f"{int(row['Porão 4'])} t", f"{int(row['Porão 5'])} t", 
-            f"{int(row['Saldo'])} t", str(row.get('Usuario', '-')), str(row.get('Hora', '-'))
+            f"{int(row['Saldo'])} t", str(row.get('Usuário', '-')), str(row.get('Hora do Registro', '-'))
         ])
     
     t_dados = Table(dados_tabela, colWidths=[65, 55, 45, 45, 45, 45, 45, 50, 75, 50])
@@ -186,16 +134,19 @@ def gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo, df_combinado):
 
 def bloco_consolidado_geral():
     st.markdown("<h2 style='text-align: center;'>Painel Gerencial Global (5 Porões)</h2>", unsafe_allow_html=True)
-    df_combinado = obter_df_combinado()
     
-    df1, df2 = st.session_state.tabela_turno_1, st.session_state.tabela_turno_2
+    # PUXA SEMPRE OS DADOS EM TEMPO REAL DA PLANILHA
+    df_global = carregar_dados_sheets()
     
-    p1 = pd.to_numeric(df1["Porão 1"]).sum() + pd.to_numeric(df2["Porão 1"]).sum() if not (df1.empty and df2.empty) else 0
-    p2 = pd.to_numeric(df1["Porão 2"]).sum() + pd.to_numeric(df2["Porão 2"]).sum() if not (df1.empty and df2.empty) else 0
-    p3 = pd.to_numeric(df1["Porão 3"]).sum() + pd.to_numeric(df2["Porão 3"]).sum() if not (df1.empty and df2.empty) else 0
-    p4 = pd.to_numeric(df1["Porão 4"]).sum() + pd.to_numeric(df2["Porão 4"]).sum() if not (df1.empty and df2.empty) else 0
-    p5 = pd.to_numeric(df1["Porão 5"]).sum() + pd.to_numeric(df2["Porão 5"]).sum() if not (df1.empty and df2.empty) else 0
-    
+    if not df_global.empty:
+        p1 = pd.to_numeric(df_global["Porão 1"], errors='coerce').fillna(0).sum()
+        p2 = pd.to_numeric(df_global["Porão 2"], errors='coerce').fillna(0).sum()
+        p3 = pd.to_numeric(df_global["Porão 3"], errors='coerce').fillna(0).sum()
+        p4 = pd.to_numeric(df_global["Porão 4"], errors='coerce').fillna(0).sum()
+        p5 = pd.to_numeric(df_global["Porão 5"], errors='coerce').fillna(0).sum()
+    else:
+        p1 = p2 = p3 = p4 = p5 = 0
+        
     saldo_geral = p1 + p2 + p3 + p4 + p5
     meta_referencia = 50000
     falta_atingir = max(0, meta_referencia - saldo_geral)
@@ -216,9 +167,8 @@ def bloco_consolidado_geral():
     st.markdown("#### Histórico de Lançamentos Realizados")
     st.caption("💡 Para excluir: Selecione o quadradinho na esquerda da linha e aperte a lixeira da tabela ou a tecla Delete.")
     
-    if not df_combinado.empty:
-        df_visual = df_combinado.drop(columns=["orig_index"])
-        df_estilizado = df_visual.style.set_properties(**{'text-align': 'center'})
+    if not df_global.empty:
+        df_estilizado = df_global.style.set_properties(**{'text-align': 'center'})
         
         st.markdown('<div class="tabela-global-exclusiva">', unsafe_allow_html=True)
         linhas_editadas = st.data_editor(
@@ -226,48 +176,43 @@ def bloco_consolidado_geral():
             use_container_width=True, 
             hide_index=True,
             num_rows="dynamic",
-            disabled=["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuario", "Hora"]
+            disabled=["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
         )
         st.markdown('</div>', unsafe_allow_html=True)
         
-        if len(linhas_editadas) < len(df_visual):
+        # Se houve deleção pelo quadradinho + lixeira
+        if len(linhas_editadas) < len(df_global):
             indices_mantidos = linhas_editadas.index.tolist()
-            df_removidos = df_combinado[~df_combinado.index.isin(indices_mantidos)]
-            
-            for _, row in df_removidos.iterrows():
-                t_alvo = row["Turno"]
-                orig_idx = row["orig_index"]
-                if t_alvo == "1º TURNO":
-                    st.session_state.tabela_turno_1 = st.session_state.tabela_turno_1.drop(orig_idx).reset_index(drop=True)
-                else:
-                    st.session_state.tabela_turno_2 = st.session_state.tabela_turno_2.drop(orig_idx).reset_index(drop=True)
-            
-            df_atualizado = obter_df_combinado()
-            if not df_atualizado.empty:
-                df_atualizado = df_atualizado.drop(columns=["orig_index"])
-            sincronizar_visao_global_com_sheets(df_atualizado)
+            df_novo_global = df_global.iloc[indices_mantidos].reset_index(drop=True)
+            salvar_dados_sheets(df_novo_global)
             st.rerun()
         
         st.markdown("---")
-        pdf_data = gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo_geral, df_combinado.drop(columns=["orig_index"]))
+        pdf_data = gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo_geral, df_global)
         st.download_button(
             label="Exportar Relatório Global em PDF", data=pdf_data,
             file_name="Relatorio_Global_Carregamento.pdf", mime="application/pdf", use_container_width=True
         )
     else:
-        st.info("Nenhum dado lançado nos turnos até o momento.")
+        st.info("Nenhum dado lançado na planilha até o momento.")
 
 def bloco_painel_poroes(turno_atual):
     st.markdown(f"<h2>Lançamentos Atuais - {turno_atual}</h2>", unsafe_allow_html=True)
-    chave_tabela = 'tabela_turno_1' if turno_atual == "1º TURNO" else 'tabela_turno_2'
-    df_atual = st.session_state[chave_tabela]
+    
+    # Carrega dados gerais da planilha e filtra apenas os do turno logado
+    df_global = carregar_dados_sheets()
+    df_atual = df_global[df_global["Turno"] == turno_atual].reset_index(drop=True)
 
     if st.session_state.edit_mode and st.session_state.edit_index is not None:
         row_edit = df_atual.iloc[st.session_state.edit_index]
-        val_p1, val_p2, val_p3, val_p4, val_p5 = int(row_edit["Porão 1"]), int(row_edit["Porão 2"]), int(row_edit["Porão 3"]), int(row_edit["Porão 4"]), int(row_edit.get("Porão 5", 0))
+        val_p1 = int(row_edit["Porão 1"])
+        val_p2 = int(row_edit["Porão 2"])
+        val_p3 = int(row_edit["Porão 3"])
+        val_p4 = int(row_edit["Porão 4"])
+        val_p5 = int(row_edit["Porão 5"])
         titulo_box, texto_botao = "Alterar Lançamento", "Salvar Alterações"
     else:
-        val_p1, val_p2, val_p3, val_p4, val_p5 = 0, 0, 0, 0, 0
+        val_p1 = val_p2 = val_p3 = val_p4 = val_p5 = 0
         titulo_box, texto_botao = "Novo Lançamento (5 Porões)", "Gravar Lançamento"
 
     with st.expander(titulo_box, expanded=True):
@@ -283,27 +228,41 @@ def bloco_painel_poroes(turno_atual):
         with c_btn1:
             if st.button(texto_botao, use_container_width=True):
                 hora_correta = obter_hora_atual_brasil()
+                saldo_calculado = v1 + v2 + v3 + v4 + v5
                 
                 if st.session_state.edit_mode:
-                    idx = st.session_state.edit_index
-                    st.session_state[chave_tabela].at[idx, "Dia"] = data_lan.strftime("%d/%m/%Y")
-                    st.session_state[chave_tabela].at[idx, "Porão 1"] = v1
-                    st.session_state[chave_tabela].at[idx, "Porão 2"] = v2
-                    st.session_state[chave_tabela].at[idx, "Porão 3"] = v3
-                    st.session_state[chave_tabela].at[idx, "Porão 4"] = v4
-                    st.session_state[chave_tabela].at[idx, "Porão 5"] = v5
-                    st.session_state[chave_tabela].at[idx, "Saldo"] = v1+v2+v3+v4+v5
-                    st.session_state[chave_tabela].at[idx, "Usuario"] = st.session_state.user_name
-                    st.session_state[chave_tabela].at[idx, "Hora"] = hora_correta
+                    # Identificar a linha correspondente no DataFrame global completo
+                    idx_turno = st.session_state.edit_index
+                    linha_original = df_atual.iloc[idx_turno]
+                    
+                    # Encontra o índice exato correspondente dentro de df_global completo
+                    idx_global = df_global[(df_global["Turno"] == turno_atual) & 
+                                           (df_global["Dia"] == linha_original["Dia"]) & 
+                                           (df_global["Hora do Registro"] == linha_original["Hora do Registro"])].index[0]
+                    
+                    df_global.at[idx_global, "Dia"] = data_lan.strftime("%d/%m/%Y")
+                    df_global.at[idx_global, "Porão 1"] = v1
+                    df_global.at[idx_global, "Porão 2"] = v2
+                    df_global.at[idx_global, "Porão 3"] = v3
+                    df_global.at[idx_global, "Porão 4"] = v4
+                    df_global.at[idx_global, "Porão 5"] = v5
+                    df_global.at[idx_global, "Saldo"] = saldo_calculado
+                    df_global.at[idx_global, "Usuário"] = st.session_state.user_name
+                    df_global.at[idx_global, "Hora do Registro"] = hora_correta
                     st.session_state.edit_mode, st.session_state.edit_index = False, None
                 else:
-                    nova = pd.DataFrame([{"Dia": data_lan.strftime("%d/%m/%Y"), "Porão 1": v1, "Porão 2": v2, "Porão 3": v3, "Porão 4": v4, "Porão 5": v5, "Saldo": v1+v2+v3+v4+v5, "Usuario": st.session_state.user_name, "Hora": hora_correta}])
-                    st.session_state[chave_tabela] = pd.concat([df_atual, nova], ignore_index=True)
+                    novo_registro = pd.DataFrame([{
+                        "Turno": turno_atual,
+                        "Dia": data_lan.strftime("%d/%m/%Y"),
+                        "Porão 1": v1, "Porão 2": v2, "Porão 3": v3, "Porão 4": v4, "Porão 5": v5,
+                        "Saldo": saldo_calculado,
+                        "Usuário": st.session_state.user_name,
+                        "Hora do Registro": hora_correta
+                    }])
+                    df_global = pd.concat([df_global, novo_registro], ignore_index=True)
                 
-                df_sheets_atualizado = obter_df_combinado()
-                if not df_sheets_atualizado.empty:
-                    df_sheets_atualizado = df_sheets_atualizado.drop(columns=["orig_index"])
-                sincronizar_visao_global_com_sheets(df_sheets_atualizado)
+                # Salva e força atualização instantânea na nuvem
+                salvar_dados_sheets(df_global)
                 st.rerun()
         with c_btn2:
             if st.session_state.edit_mode and st.button("Cancelar", use_container_width=True):
@@ -312,7 +271,7 @@ def bloco_painel_poroes(turno_atual):
 
     if not df_atual.empty:
         st.markdown("#### Histórico do Turno")
-        df_atual_estilizado = df_atual.style.set_properties(**{'text-align': 'center'})
+        df_atual_estilizado = df_atual.drop(columns=["Turno"]).style.set_properties(**{'text-align': 'center'})
         st.dataframe(df_atual_estilizado, use_container_width=True, hide_index=True)
         
         linhas_opcoes = [f"Linha {i} - Data: {row['Dia']} (Saldo: {row['Saldo']}t)" for i, row in df_atual.iterrows()]
@@ -325,7 +284,7 @@ def bloco_painel_poroes(turno_atual):
                 st.session_state.edit_index = linhas_opcoes.index(linha_selecionada)
                 st.rerun()
     else:
-        st.info("Nenhum registro lançado para este turno.")
+        st.info("Nenhum registro lançado para este turno na planilha.")
 
 def bloco_cadastro():
     st.markdown("<h2>Cadastrar Novo Operador</h2>", unsafe_allow_html=True)
