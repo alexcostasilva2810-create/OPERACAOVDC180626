@@ -73,7 +73,7 @@ if "usuarios_db" not in st.session_state:
 REFERENCIA_CONTRATUAL = 50000.0
 COLUNAS_PADRAO = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
 
-# URL fornecida ajustada e limpa para conformidade estrita da API do GSheetsConnection
+# URL da sua planilha fornecida
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/187LiSHFECqYM2wwYBnAUAfr3WzL1pwG5QtccKcEUBSk/edit"
 
 # -----------------------------------------------------------------------------
@@ -87,12 +87,11 @@ except Exception:
 def carregar_dados_nuvem():
     if conn:
         try:
-            # Força a leitura apontando diretamente para a URL limpa
             df = conn.read(spreadsheet=URL_PLANILHA, ttl=0)
-            if df.empty:
+            if df.empty or len(df.columns) < 2:
                 return pd.DataFrame(columns=COLUNAS_PADRAO)
             
-            # Remove qualquer coluna antiga que continha o nome "Porção"
+            # Ajusta cabeçalhos antigos caso existam
             mapeamento = {col: col.replace("Porção", "Porão") for col in df.columns if "Porção" in col}
             if mapeamento:
                 df = df.rename(columns=mapeamento)
@@ -113,7 +112,11 @@ def carregar_dados_nuvem():
 def atualizar_planilha_nuvem(df_novo):
     if conn:
         try:
-            # Envio definitivo e explícito utilizando a URL Base sem fragmentos de GID
+            # GARANTIA EXTRALÉVIO: Se o DataFrame enviado estiver vazio ou sem colunas, força a estrutura base
+            if df_novo.empty:
+                df_novo = pd.DataFrame(columns=COLUNAS_PADRAO)
+            
+            # Sincronização direta na URL base apontando os dados completos estruturados
             conn.update(spreadsheet=URL_PLANILHA, data=df_novo)
             return True
         except Exception as e:
@@ -229,10 +232,11 @@ else:
                 "Hora do Registro": fuso_local.strftime("%H:%M:%S")
             }
             
+            # Concatena localmente
             novo_df_linha = pd.DataFrame([novo_registro])
             st.session_state.dados_operacao = pd.concat([st.session_state.dados_operacao, novo_df_linha], ignore_index=True)
             
-            # Sincroniza diretamente na nuvem utilizando a URL tratada
+            # Força o envio estruturado limpando a planilha em branco na nuvem
             atualizar_planilha_nuvem(st.session_state.dados_operacao[COLUNAS_PADRAO])
             
             st.success("Lançamento efetuado e sincronizado com sucesso! 🚀")
