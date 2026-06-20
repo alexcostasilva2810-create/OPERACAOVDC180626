@@ -58,7 +58,7 @@ def sincronizar_visao_global_com_sheets(df_global_atual):
         df_salvar.columns = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
         conn.update(worksheet="Global", data=df_salvar)
     except Exception as e:
-        st.warning(f"Aviso: Conexão com Google Sheets pendente de validação local/secrets: {e}")
+        st.warning(f"Aviso: Conexão com Google Sheets pendente de validação: {e}")
 
 def obter_df_combinado():
     df1 = st.session_state.tabela_turno_1.copy()
@@ -78,7 +78,6 @@ def gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo, df_combinado):
     styles = getSampleStyleSheet()
     
     title_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=18, textColor=colors.HexColor('#0f172a'), alignment=1, spaceAfter=15)
-    heading_style = ParagraphStyle('T2', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor('#0284c7'), spaceBefore=10, spaceAfter=8)
     normal_style = ParagraphStyle('N', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#1e293b'))
 
     story.append(Paragraph("Relatório Consolidado de Carregamento - Global", title_style))
@@ -148,7 +147,6 @@ def bloco_consolidado_geral():
     st.markdown("#### Histórico de Lançamentos Realizados")
     
     if not df_combinado.empty:
-        # Exibição nativa em tabela DataFrame limpa do Streamlit para evitar bugs visuais
         df_visual = df_combinado.copy()
         st.dataframe(df_visual, use_container_width=True, hide_index=True)
         
@@ -179,7 +177,7 @@ def bloco_painel_poroes(turno_atual):
         with col2: v1 = st.number_input("Porão 1 (t)", min_value=0, step=50, value=val_p1, key=f"p1_{turno_atual}")
         with col3: v2 = st.number_input("Porão 2 (t)", min_value=0, step=50, value=val_p2, key=f"p2_{turno_atual}")
         with col4: v3 = st.number_input("Porão 3 (t)", min_value=0, step=50, value=val_p3, key=f"p3_{turno_atual}")
-        with col4: v4 = st.number_input("Porão 4 (t)", min_value=0, step=50, value=val_p4, key=f"p4_{turno_atual}")
+        with col5: v4 = st.number_input("Porão 4 (t)", min_value=0, step=50, value=val_p4, key=f"p4_{turno_atual}")
         with col6: v5 = st.number_input("Porão 5 (t)", min_value=0, step=50, value=val_p5, key=f"p5_{turno_atual}")
         
         c_btn1, c_btn2 = st.columns([5, 1])
@@ -213,15 +211,15 @@ def bloco_painel_poroes(turno_atual):
         st.markdown("#### Histórico do Turno")
         st.dataframe(df_atual, use_container_width=True, hide_index=True)
         
-        # Sistema de seleção simples para edição de linhas
+        # Correção da expressão list generator adicionando colchetes [...]
         linhas_opcoes = [f"Linha {i} - Data: {row['Dia']} (Saldo: {row['Saldo']}t)" for i, row in df_atual.iterrows()]
         col_ed, col_btn_ed = st.columns([4, 1])
         with col_ed:
-            linha_selecionada = st.selectbox("Selecione um lançamento para editar:", o for o in linhas_opcoes)
+            linha_selecionada = st.selectbox("Selecione um lançamento para editar:", options=linhas_opcoes)
         with col_btn_ed:
             if st.button("✏️ Editar Linha", use_container_width=True):
                 st.session_state.edit_mode = True
-                st.session_state.edit_index = linhas_opcoes.index(linha_selecionada)
+                st.session_state.edit_index = lines_index = linhas_opcoes.index(linha_selecionada)
                 st.rerun()
     else:
         st.info("Nenhum registro lançado para este turno.")
