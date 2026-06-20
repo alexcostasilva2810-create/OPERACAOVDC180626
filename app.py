@@ -11,7 +11,7 @@ from streamlit_gsheets import GSheetsConnection
 # Configuração da página
 st.set_page_config(page_title="Zion Tecnologia - Gestão Portuária", page_icon="🚢", layout="wide")
 
-# 1. INICIALIZAÇÃO DO BANCO DE USUÁRIOS (Antes do CSS para garantir estabilidade no cadastro)
+# 1. INICIALIZAÇÃO DO BANCO DE USUÁRIOS
 if 'banco_usuarios' not in st.session_state:
     st.session_state.banco_usuarios = {
         "admin": {"senha": "1234", "role": "admin"},
@@ -20,16 +20,16 @@ if 'banco_usuarios' not in st.session_state:
         "Rubens Ferreira": {"senha": "8036", "turno_fixo": "2º TURNO", "role": "operador"}
     }
 
-# 2. ESTILIZAÇÃO CSS: Fundo preto, letras verdes e APENAS os botões do menu lateral com texto PRETO
+# 2. ESTILIZAÇÃO CSS COMPLETA
 st.markdown(
     """
     <style>
-    /* Fundo principal e da barra lateral sempre pretos */
+    /* TODO O SISTEMA: Fundo preto */
     .stApp, [data-testid="stSidebar"] { 
         background-color: #000000 !important; 
     }
     
-    /* Configuração padrão de textos do sistema em verde */
+    /* Textos do sistema em verde */
     p, label, .stMarkdown p, .stSelectbox label, .stInputField label, .stDateInput label { 
         color: #00ff66 !important; 
         font-weight: bold !important; 
@@ -45,16 +45,27 @@ st.markdown(
         margin-bottom: 1rem;
     }
 
-    /* ALTERAÇÃO SOLICITADA: Força as letras de todos os botões da barra lateral para PRETO */
+    /* FOCO AQUI: Letras de todos os botões do menu lateral em PRETO */
     [data-testid="stSidebar"] button p {
         color: #000000 !important;
         font-weight: bold !important;
     }
     
-    /* Ajuste fino dos botões do menu para manter legibilidade ao passar o mouse */
+    /* Estilo do botão de navegação lateral (Fundo Branco) */
     [data-testid="stSidebar"] button {
         background-color: #ffffff !important;
         border: 1px solid #00ff66 !important;
+    }
+
+    /* Tabela do histórico da Visão Global (Fundo branco e letras pretas) */
+    .tabela-global-exclusiva .stDataFrame {
+        background-color: #ffffff !important;
+        border: 2px solid #ffffff !important;
+        border-radius: 4px !important;
+    }
+    .tabela-global-exclusiva td, .tabela-global-exclusiva th, .tabela-global-exclusiva p, .tabela-global-exclusiva span {
+        color: #000000 !important;
+        font-weight: normal !important;
     }
     </style>
     """,
@@ -80,7 +91,7 @@ def sincronizar_visao_global_com_sheets(df_global_atual):
         df_salvar.columns = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
         conn.update(worksheet="Global", data=df_salvar)
     except Exception as e:
-        st.warning(f"Aviso: Conexão com Google Sheets pendente de validação: {e}")
+        pass
 
 def obter_df_combinado():
     df1 = st.session_state.tabela_turno_1.copy()
@@ -93,7 +104,7 @@ def obter_df_combinado():
         return df_combinado[ordem_colunas]
     return pd.DataFrame(columns=ordem_colunas)
 
-def generar_pdf_reportlab(p1, p2, p3, p4, p5, saldo, df_combinado):
+def gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo, df_combinado):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=20, leftMargin=20, topMargin=40, bottomMargin=40)
     story = []
@@ -170,7 +181,10 @@ def bloco_consolidado_geral():
     
     if not df_combinado.empty:
         df_visual = df_combinado.copy()
+        
+        st.markdown('<div class="tabela-global-exclusiva">', unsafe_allow_html=True)
         st.dataframe(df_visual, use_container_width=True, hide_index=True)
+        st.markdown('</div>', unsafe_allow_html=True)
         
         pdf_data = gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo_geral, df_combinado)
         st.download_button(
@@ -254,11 +268,10 @@ def bloco_cadastro():
         
         if st.form_submit_button("Salvar Operador", use_container_width=True):
             if nu and np:
-                # O operador agora é salvo permanentemente e de forma estável na sessão raiz
                 st.session_state.banco_usuarios[nu] = {"senha": np, "turno_fixo": nt, "role": "operador"}
-                st.success(f"Operador '{nu}' cadastrado com sucesso! Novo acesso liberado.")
+                st.success(f"Operador '{nu}' cadastrado com sucesso!")
             else:
-                st.error("Preencha Usuário e Senha para prosseguir.")
+                st.error("Preencha Usuário e Senha.")
 
 def bloco_login():
     st.markdown('<div class="custom-box">', unsafe_allow_html=True)
@@ -289,7 +302,6 @@ def main():
             
         st.sidebar.markdown("---")
         
-        # REMOÇÃO DE FIGURAS DOS BOTÕES DO MENU LATERAL
         if st.sidebar.button("Lançamentos do Turno", use_container_width=True):
             st.session_state.menu_atual = "Lançamentos"
             st.rerun()
