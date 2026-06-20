@@ -71,6 +71,10 @@ if "usuarios_db" not in st.session_state:
     }
 
 REFERENCIA_CONTRATUAL = 50000.0
+COLUNAS_PADRAO = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
+
+# URL fornecida ajustada e limpa para conformidade estrita da API do GSheetsConnection
+URL_PLANILHA = "https://docs.google.com/spreadsheets/d/187LiSHFECqYM2wwYBnAUAfr3WzL1pwG5QtccKcEUBSk/edit"
 
 # -----------------------------------------------------------------------------
 # CONEXÃO COM O GOOGLE SHEETS
@@ -83,29 +87,40 @@ except Exception:
 def carregar_dados_nuvem():
     if conn:
         try:
-            df = conn.read(ttl=0)
+            # Força a leitura apontando diretamente para a URL limpa
+            df = conn.read(spreadsheet=URL_PLANILHA, ttl=0)
             if df.empty:
-                return pd.DataFrame(columns=["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"])
+                return pd.DataFrame(columns=COLUNAS_PADRAO)
+            
+            # Remove qualquer coluna antiga que continha o nome "Porção"
+            mapeamento = {col: col.replace("Porção", "Porão") for col in df.columns if "Porção" in col}
+            if mapeamento:
+                df = df.rename(columns=mapeamento)
+                
+            for col in COLUNAS_PADRAO:
+                if col not in df.columns:
+                    df[col] = 0.0 if "Porão" in col or col == "Saldo" else ""
             
             colunas_numéricas = ["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo"]
             for col in colunas_numéricas:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
-            return df
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+                
+            return df[COLUNAS_PADRAO]
         except Exception:
             pass
-    return pd.DataFrame(columns=["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"])
+    return pd.DataFrame(columns=COLUNAS_PADRAO)
 
 def atualizar_planilha_nuvem(df_novo):
     if conn:
         try:
-            conn.update(data=df_novo)
+            # Envio definitivo e explícito utilizando a URL Base sem fragmentos de GID
+            conn.update(spreadsheet=URL_PLANILHA, data=df_novo)
             return True
-        except Exception:
+        except Exception as e:
+            st.error(f"Erro na sincronização com o Google Sheets: {e}")
             return False
     return False
 
-# Inicializa os dados na sessão
 if "dados_operacao" not in st.session_state:
     st.session_state.dados_operacao = carregar_dados_nuvem()
 
@@ -181,8 +196,10 @@ else:
         with st.expander("▼ Novo Lançamento (5 Porões)", expanded=True):
             col_data, col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(6)
             
+            fuso_local = datetime.now()
+            
             with col_data:
-                data_lanc = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY")
+                data_lanc = st.date_input("Data", value=fuso_local, format="DD/MM/YYYY")
             with col_p1:
                 p1 = st.number_input("Porão 1 (t)", min_value=0.0, step=50.0, value=0.0)
             with col_p2:
@@ -209,35 +226,27 @@ else:
                 "Porão 5": p5,
                 "Saldo": saldo_lancamento,
                 "Usuário": st.session_state.usuario_atual,
-                "Hora do Registro": datetime.now().strftime("%H:%M:%S")
+                "Hora do Registro": fuso_local.strftime("%H:%M:%S")
             }
             
             novo_df_linha = pd.DataFrame([novo_registro])
             st.session_state.dados_operacao = pd.concat([st.session_state.dados_operacao, novo_df_linha], ignore_index=True)
             
-            atualizar_planilha_nuvem(st.session_state.dados_operacao)
+            # Sincroniza diretamente na nuvem utilizando a URL tratada
+            atualizar_planilha_nuvem(st.session_state.dados_operacao[COLUNAS_PADRAO])
             
-            st.success("Lançamento efetuado com sucesso! 🚀")
+            st.success("Lançamento efetuado e sincronizado com sucesso! 🚀")
             st.rerun()
 
         st.subheader("Histórico do Turno")
         if not df_atual.empty and "Turno" in df_atual.columns:
             df_turno = df_atual[df_atual["Turno"] == turno_trabalho]
             if not df_turno.empty:
-                st.dataframe(df_turno, use_container_width=True, hide_index=True)
+                st.dataframe(df_turno[COLUNAS_PADRAO], use_container_width=True, hide_index=True)
             else:
                 st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
         else:
             st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
-
-        st.markdown("---")
-        if not df_atual.empty and "Turno" in df_atual.columns:
-            df_turno_edit = df_atual[df_atual["Turno"] == turno_trabalho]
-            if not df_turno_edit.empty:
-                opcoes_edicao = [f"Linha {idx} - Data: {row['Dia']} (Saldo: {row['Saldo']})" for idx, row in df_turno_edit.iterrows()]
-                selecionado = st.selectbox("Selecione um lançamento para editar:", opcoes_edicao)
-                if selecionado:
-                    st.button("Editar Linha", use_container_width=True)
 
     # -------------------------------------------------------------------------
     # MÓDULO GLOBAL (Apenas Admins acessam)
@@ -275,7 +284,7 @@ else:
         st.subheader("Histórico de Lançamentos Realizados")
         
         if not df_atual.empty:
-            st.dataframe(df_atual, use_container_width=True, hide_index=True)
+            st.dataframe(df_atual[COLUNAS_PADRAO], use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum dado lançado nos turnos até o momento.")
             
