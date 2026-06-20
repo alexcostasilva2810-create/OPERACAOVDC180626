@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -86,13 +87,21 @@ def aplicar_estilo_visual():
             color: #38bdf8 !important; 
             font-weight: bold !important;
         }
+        
+        /* Centralizar Título específico da tela Global */
+        .titulo-centralizado {
+            text-align: center;
+            color: #38bdf8 !important;
+            font-weight: bold !important;
+            margin-bottom: 25px;
+        }
         </style>
         """,
         unsafe_allow_html=True
     )
 
 # =====================================================================
-# BLOCO: BANCO DE DADOS EM MEMÓRIA
+# BLOCO: BANCO DE DADOS EM MEMÓRIA (Atualizado com novas colunas)
 # =====================================================================
 def inicializar_dados():
     if 'banco_usuarios' not in st.session_state:
@@ -109,7 +118,7 @@ def inicializar_dados():
     if 'role' not in st.session_state: st.session_state.role = "operador"
     if 'menu_atual' not in st.session_state: st.session_state.menu_atual = "Lançamentos"
 
-    colunas = ["Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]
+    colunas = ["Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo", "Usuario", "Hora"]
     if 'tabela_turno_1' not in st.session_state:
         st.session_state.tabela_turno_1 = pd.DataFrame(columns=colunas)
     if 'tabela_turno_2' not in st.session_state:
@@ -123,12 +132,12 @@ def inicializar_dados():
 # =====================================================================
 def gerar_pdf_reportlab(p1, p2, p3, p4, saldo, df_combinado):
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=40, bottomMargin=40)
     story = []
     styles = getSampleStyleSheet()
     
-    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=22, textColor=colors.HexColor('#0f172a'), alignment=1, spaceAfter=20)
-    heading_style = ParagraphStyle('HeadingStyle', parent=styles['Heading2'], fontSize=13, textColor=colors.HexColor('#0284c7'), spaceBefore=15, spaceAfter=10)
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=20, textColor=colors.HexColor('#0f172a'), alignment=1, spaceAfter=20)
+    heading_style = ParagraphStyle('HeadingStyle', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor('#0284c7'), spaceBefore=15, spaceAfter=10)
     normal_style = ParagraphStyle('NormalStyle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#1e293b'))
 
     story.append(Paragraph("Relatório Consolidado de Carregamento - Global", title_style))
@@ -150,19 +159,26 @@ def gerar_pdf_reportlab(p1, p2, p3, p4, saldo, df_combinado):
     story.append(Spacer(1, 20))
     
     story.append(Paragraph("Demonstrativo Detalhado de Movimentações (Todos os Turnos)", heading_style))
-    dados_tabela = [['Turno', 'Data da Operação', 'Porão 1 (t)', 'Porão 2 (t)', 'Porão 3 (t)', 'Porão 4 (t)', 'Saldo (t)']]
-    for _, row in df_combinado.iterrows():
-        dados_tabela.append([str(row['Turno']), str(row['Dia']), str(int(row['Porão 1'])), str(int(row['Porão 2'])), str(int(row['Porão 3'])), str(int(row['Porão 4'])), str(int(row['Saldo']))])
-    dados_tabela.append(['-', 'TOTAL CONSOLIDADO', str(int(p1)), str(int(p2)), str(int(p3)), str(int(p4)), str(int(saldo))])
+    dados_tabela = [['Turno', 'Data', 'Porão 1', 'Porão 2', 'Porão 3', 'Porão 4', 'Saldo', 'Usuário', 'Hora']]
     
-    t_dados = Table(dados_tabela, colWidths=[70, 90, 75, 75, 75, 75, 95])
+    for _, row in df_combinado.iterrows():
+        usr = str(row.get('Usuario', '-'))
+        hra = str(row.get('Hora', '-'))
+        dados_tabela.append([
+            str(row['Turno']), str(row['Dia']), 
+            f"{int(row['Porão 1'])} t", f"{int(row['Porão 2'])} t", 
+            f"{int(row['Porão 3'])} t", f"{int(row['Porão 4'])} t", 
+            f"{int(row['Saldo'])} t", usr, hra
+        ])
+    
+    t_dados = Table(dados_tabela, colWidths=[65, 65, 55, 55, 55, 55, 60, 75, 55])
     t_dados.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e293b')),
         ('TEXTCOLOR', (0,0), (-1,0), colors.white),
         ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
-        ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#cbd5e1')),
-        ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
     ]))
     story.append(t_dados)
     doc.build(story)
@@ -172,7 +188,8 @@ def gerar_pdf_reportlab(p1, p2, p3, p4, saldo, df_combinado):
 # MÓDULO 3: VISÃO GLOBAL CONSOLIDADA (APENAS ADMINISTRADORES)
 # =====================================================================
 def bloco_consolidado_geral():
-    st.markdown("<h2>🌍 Painel Gerencial Global (Turno 1 + Turno 2)</h2>", unsafe_allow_html=True)
+    # Cabeçalho centralizado e sem o ícone do globo terrestre
+    st.markdown("<h2 class='titulo-centralizado'>Painel Gerencial Global (Turno 1 + Turno 2)</h2>", unsafe_allow_html=True)
     
     df1 = st.session_state.tabela_turno_1.copy()
     df1["Turno"] = "1º TURNO"
@@ -180,7 +197,6 @@ def bloco_consolidado_geral():
     df2 = st.session_state.tabela_turno_2.copy()
     df2["Turno"] = "2º TURNO"
     
-    # Junta as duas tabelas mantendo os registros individuais e independentes
     df_combinado = pd.concat([df1, df2], ignore_index=True)
     
     p1_total = pd.to_numeric(df1["Porão 1"]).sum() if not df1.empty else 0
@@ -197,7 +213,6 @@ def bloco_consolidado_geral():
     
     saldo_geral = p1_total + p2_total + p3_total + p4_total
     
-    # Lógica de Abatimento da Referência Contratual
     meta_referencia = 50000
     falta_atingir = meta_referencia - saldo_geral if (meta_referencia - saldo_geral) > 0 else 0
 
@@ -224,10 +239,41 @@ def bloco_consolidado_geral():
     if not df_combinado.empty:
         df_combinado[["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]] = df_combinado[["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]].apply(pd.to_numeric).fillna(0)
         
-        # Tabela Detalhada Individualizada por Lançamento
-        html_table = "<table><thead><tr><th>Turno</th><th>Dia</th><th>Porão 1</th><th>Porão 2</th><th>Porão 3</th><th>Porão 4</th><th>Saldo</th></tr></thead><tbody>"
+        # Tabela Detalhada atualizada com colunas extras para Usuário e Hora de Gravação
+        html_table = """
+        <table>
+            <thead>
+                <tr>
+                    <th>Turno</th>
+                    <th>Dia</th>
+                    <th>Porão 1</th>
+                    <th>Porão 2</th>
+                    <th>Porão 3</th>
+                    <th>Porão 4</th>
+                    <th>Saldo</th>
+                    <th>Usuário</th>
+                    <th>Hora do Registro</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
         for _, r in df_combinado.iterrows():
-            html_table += f"<tr><td>{r['Turno']}</td><td>{r['Dia']}</td><td>{int(r['Porão 1'])} t</td><td>{int(r['Porão 2'])} t</td><td>{int(r['Porão 3'])} t</td><td>{int(r['Porão 4'])} t</td><td>{int(r['Saldo'])} t</td></tr>"
+            usr = r.get('Usuario', '-') if pd.notna(r.get('Usuario')) else '-'
+            hra = r.get('Hora', '-') if pd.notna(r.get('Hora')) else '-'
+            
+            html_table += f"""
+                <tr>
+                    <td>{r['Turno']}</td>
+                    <td>{r['Dia']}</td>
+                    <td>{int(r['Porão 1'])} t</td>
+                    <td>{int(r['Porão 2'])} t</td>
+                    <td>{int(r['Porão 3'])} t</td>
+                    <td>{int(r['Porão 4'])} t</td>
+                    <td>{int(r['Saldo'])} t</td>
+                    <td>{usr}</td>
+                    <td>{hra}</td>
+                </tr>
+            """
         html_table += "</tbody></table>"
         st.markdown(html_table, unsafe_allow_html=True)
         
@@ -275,6 +321,9 @@ def bloco_painel_poroes(turno_atual):
         c_btn1, c_btn2 = st.columns([4, 1])
         with c_btn1:
             if st.button(texto_botao, use_container_width=True, key=f"btn_salvar_{turno_atual}"):
+                hora_atual = datetime.now().strftime("%H:%M:%S")
+                usuario_ativo = st.session_state.user_name
+                
                 if st.session_state.edit_mode:
                     st.session_state[chave_tabela].at[st.session_state.edit_index, "Dia"] = data_lan.strftime("%d/%m/%Y")
                     st.session_state[chave_tabela].at[st.session_state.edit_index, "Porão 1"] = v1
@@ -282,9 +331,17 @@ def bloco_painel_poroes(turno_atual):
                     st.session_state[chave_tabela].at[st.session_state.edit_index, "Porão 3"] = v3
                     st.session_state[chave_tabela].at[st.session_state.edit_index, "Porão 4"] = v4
                     st.session_state[chave_tabela].at[st.session_state.edit_index, "Saldo"] = v1+v2+v3+v4
+                    st.session_state[chave_tabela].at[st.session_state.edit_index, "Usuario"] = usuario_ativo
+                    st.session_state[chave_tabela].at[st.session_state.edit_index, "Hora"] = hora_atual
                     st.session_state.edit_mode, st.session_state.edit_index = False, None
                 else:
-                    nova = pd.DataFrame([{"Dia": data_lan.strftime("%d/%m/%Y"), "Porão 1": v1, "Porão 2": v2, "Porão 3": v3, "Porão 4": v4, "Saldo": v1+v2+v3+v4}])
+                    nova = pd.DataFrame([{
+                        "Dia": data_lan.strftime("%d/%m/%Y"), 
+                        "Porão 1": v1, "Porão 2": v2, "Porão 3": v3, "Porão 4": v4, 
+                        "Saldo": v1+v2+v3+v4,
+                        "Usuario": usuario_ativo,
+                        "Hora": hora_atual
+                    }])
                     st.session_state[chave_tabela] = pd.concat([df_atual, nova], ignore_index=True)
                 st.rerun()
         with c_btn2:
@@ -294,19 +351,20 @@ def bloco_painel_poroes(turno_atual):
 
     if not df_atual.empty:
         st.markdown("#### Lançamentos Registrados")
-        cols_headers = st.columns([2, 2, 2, 2, 2, 2, 2])
-        headers = ["Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo", "Ação"]
+        cols_headers = st.columns([2, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1])
+        headers = ["Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo", "Usuário", "Ação"]
         for i, h in enumerate(headers): cols_headers[i].markdown(f"<th>{h}</th>", unsafe_allow_html=True)
             
         for idx, row in df_atual.iterrows():
-            cols_row = st.columns([2, 2, 2, 2, 2, 2, 2])
+            cols_row = st.columns([2, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1])
             cols_row[0].markdown(f"<td>{row['Dia']}</td>", unsafe_allow_html=True)
             cols_row[1].markdown(f"<td>{row['Porão 1']} t</td>", unsafe_allow_html=True)
             cols_row[2].markdown(f"<td>{row['Porão 2']} t</td>", unsafe_allow_html=True)
             cols_row[3].markdown(f"<td>{row['Porão 3']} t</td>", unsafe_allow_html=True)
             cols_row[4].markdown(f"<td>{row['Porão 4']} t</td>", unsafe_allow_html=True)
             cols_row[5].markdown(f"<td>{row['Saldo']} t</td>", unsafe_allow_html=True)
-            if cols_row[6].button("✏️ Editar", key=f"edit_{idx}"):
+            cols_row[6].markdown(f"<td>{row.get('Usuario', '-')}</td>", unsafe_allow_html=True)
+            if cols_row[7].button("✏️", key=f"edit_{idx}"):
                 st.session_state.edit_mode, st.session_state.edit_index = True, idx
                 st.rerun()
 
@@ -314,7 +372,7 @@ def bloco_painel_poroes(turno_atual):
         df_calculo = df_atual.copy()
         df_calculo[["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]] = df_calculo[["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]].apply(pd.to_numeric).fillna(0)
         
-        cols_total = st.columns([2, 2, 2, 2, 2, 2, 2])
+        cols_total = st.columns([2, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1])
         cols_total[0].markdown("<th>TOTAL TURNO</th>", unsafe_allow_html=True)
         cols_total[1].markdown(f"<td>{int(df_calculo['Porão 1'].sum())} t</td>", unsafe_allow_html=True)
         cols_total[2].markdown(f"<td>{int(df_calculo['Porão 2'].sum())} t</td>", unsafe_allow_html=True)
