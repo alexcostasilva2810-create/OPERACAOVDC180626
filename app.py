@@ -4,22 +4,19 @@ from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
 # -----------------------------------------------------------------------------
-# INTERFACE E ESTILIZAÇÃO COMPLETA (PRETO E VERDE CLARO)
+# INTERFACE E ESTILIZAÇÃO ORIGINAL (PRETO E VERDE CLARO)
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="Zion Operações", layout="wide")
 
 st.markdown(
     """
     <style>
-    /* Fundo inteiramente preto */
     .stApp, [data-testid="stSidebar"], div[data-testid="stExpander"] {
         background-color: #000000 !important;
     }
-    /* Todos os textos e rótulos em verde claro */
     h1, h2, h3, p, label, .stMarkdown, [data-testid="stMetricLabel"], [data-testid="stMetricValue"] {
         color: #00FF66 !important;
     }
-    /* Estilização dos botões pretos com contorno verde */
     .stButton>button {
         background-color: #000000 !important;
         color: #00FF66 !important;
@@ -32,13 +29,11 @@ st.markdown(
         color: #000000 !important;
         border: 2px solid #00FF66 !important;
     }
-    /* Campos de entrada pretos com texto verde */
     input, select, div[data-baseweb="select"] {
         background-color: #000000 !important;
         color: #00FF66 !important;
         border: 1px solid #00FF66 !important;
     }
-    /* Tabelas em modo escuro */
     .stDataFrame, div[data-testid="stTable"] {
         background-color: #000000 !important;
     }
@@ -48,7 +43,7 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
-# CONEXÃO DIRETA COM O GOOGLE SHEETS
+# CONEXÃO COM O GOOGLE SHEETS
 # -----------------------------------------------------------------------------
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -58,7 +53,6 @@ except Exception:
 REFERENCIA_CONTRATUAL = 50000.0
 
 def carregar_dados_nuvem():
-    """Busca o histórico atualizado em tempo real na planilha Google."""
     if conn:
         try:
             df = conn.read(ttl=0)
@@ -75,7 +69,6 @@ def carregar_dados_nuvem():
     return pd.DataFrame()
 
 def atualizar_planilha_nuvem(df_novo):
-    """Grava as atualizações diretamente na planilha Google."""
     if conn:
         try:
             conn.update(data=df_novo)
@@ -85,14 +78,13 @@ def atualizar_planilha_nuvem(df_novo):
             return False
     return False
 
-# Gerenciamento de estado estável da sessão
 if "dados_operacao" not in st.session_state:
     st.session_state.dados_operacao = carregar_dados_nuvem()
 
 df_atual = st.session_state.dados_operacao
 
 # -----------------------------------------------------------------------------
-# MENU LATERAL COM NAVEGAÇÃO ORIGINAL
+# MENU LATERAL COM NAVEGAÇÃO ORIGINAL (INCLUINDO SAIR)
 # -----------------------------------------------------------------------------
 st.sidebar.title("Zion Operações")
 st.sidebar.write("🟢 **Usuário:** admin (ADMIN)")
@@ -106,13 +98,18 @@ if st.sidebar.button("Global (Consolidado)", use_container_width=True):
     st.session_state.menu_atual = "Global (Consolidado)"
 if st.sidebar.button("Cadastrar Operador", use_container_width=True):
     st.session_state.menu_atual = "Cadastrar Operador"
-st.sidebar.button("Sair", use_container_width=True)
+
+# Restaura o fluxo do botão Sair para o seu sistema de login original
+if st.sidebar.button("Sair", use_container_width=True):
+    st.session_state.logged_in = False
+    st.session_state.menu_atual = "Lançamentos do Turno"
+    st.rerun()
 
 st.sidebar.markdown("---")
 turno_trabalho = st.sidebar.selectbox("Visualizar Turno", ["1º TURNO", "2º TURNO"])
 
 # -----------------------------------------------------------------------------
-# TELA 1: LANÇAMENTOS DO TURNO (RESTAURADA E CORRIGIDA SEM O ERRO DO AUTOFOCUS)
+# TELA 1: LANÇAMENTOS DO TURNO
 # -----------------------------------------------------------------------------
 if st.session_state.menu_atual == "Lançamentos do Turno":
     st.header(f"Lançamentos Atuais - {turno_trabalho}")
@@ -121,7 +118,8 @@ if st.session_state.menu_atual == "Lançamentos do Turno":
         col_data, col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(6)
         
         with col_data:
-            data_lanc = st.date_input("Data", value=datetime.now())
+            # Data formatada localmente para exibir DD/MM/YYYY no componente do calendário
+            data_lanc = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY")
         with col_p1:
             p1 = st.number_input("Porção 1 (t)", min_value=0.0, step=50.0, value=0.0)
         with col_p2:
@@ -140,7 +138,7 @@ if st.session_state.menu_atual == "Lançamentos do Turno":
         
         novo_registro = {
             "Turno": turno_trabalho,
-            "Dia": data_lanc.strftime("%d/%m/%Y"),
+            "Dia": data_lanc.strftime("%d/%m/%Y"), # Salva no Sheets estritamente como dia/mês/ano
             "Porção 1": p1,
             "Porção 2": p2,
             "Porção 3": p3,
@@ -169,7 +167,6 @@ if st.session_state.menu_atual == "Lançamentos do Turno":
     else:
         st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
 
-    # Bloco original inferior de seleção e edição de registros
     st.markdown("---")
     if not df_atual.empty and "Turno" in df_atual.columns:
         df_turno_edit = df_atual[df_atual["Turno"] == turno_trabalho]
