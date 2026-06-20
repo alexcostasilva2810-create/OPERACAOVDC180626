@@ -11,7 +11,7 @@ from streamlit_gsheets import GSheetsConnection
 # Configuração da página
 st.set_page_config(page_title="Zion Tecnologia - Gestão Portuária", page_icon="🚢", layout="wide")
 
-# Inicialização do banco de usuários
+# 1. INICIALIZAÇÃO DO BANCO DE USUÁRIOS (Antes do CSS para garantir estabilidade no cadastro)
 if 'banco_usuarios' not in st.session_state:
     st.session_state.banco_usuarios = {
         "admin": {"senha": "1234", "role": "admin"},
@@ -20,19 +20,23 @@ if 'banco_usuarios' not in st.session_state:
         "Rubens Ferreira": {"senha": "8036", "turno_fixo": "2º TURNO", "role": "operador"}
     }
 
-# Estilização CSS focada estritamente no seu pedido
+# 2. ESTILIZAÇÃO CSS: Fundo preto, letras verdes e APENAS os botões do menu lateral com texto PRETO
 st.markdown(
     """
     <style>
-    /* TODO O SISTEMA: Fundo preto e letras verdes */
-    .stApp { background-color: #000000 !important; }
+    /* Fundo principal e da barra lateral sempre pretos */
+    .stApp, [data-testid="stSidebar"] { 
+        background-color: #000000 !important; 
+    }
     
+    /* Configuração padrão de textos do sistema em verde */
     p, label, .stMarkdown p, .stSelectbox label, .stInputField label, .stDateInput label { 
         color: #00ff66 !important; 
         font-weight: bold !important; 
     }
     h1, h2, h3, h4 { color: #00ff66 !important; font-weight: bold !important; }
     
+    /* Box customizado do Login */
     .custom-box {
         background-color: #000000;
         padding: 1.5rem;
@@ -41,15 +45,16 @@ st.markdown(
         margin-bottom: 1rem;
     }
 
-    /* EXCEÇÃO APENAS PARA A TABELA DO HISTÓRICO DA VISÃO GLOBAL: Fundo branco e letras pretas */
-    .tabela-global-exclusiva .stDataFrame {
-        background-color: #ffffff !important;
-        border: 2px solid #ffffff !important;
-        border-radius: 4px !important;
-    }
-    .tabela-global-exclusiva td, .tabela-global-exclusiva th, .tabela-global-exclusiva p, .tabela-global-exclusiva span {
+    /* ALTERAÇÃO SOLICITADA: Força as letras de todos os botões da barra lateral para PRETO */
+    [data-testid="stSidebar"] button p {
         color: #000000 !important;
-        font-weight: normal !important;
+        font-weight: bold !important;
+    }
+    
+    /* Ajuste fino dos botões do menu para manter legibilidade ao passar o mouse */
+    [data-testid="stSidebar"] button {
+        background-color: #ffffff !important;
+        border: 1px solid #00ff66 !important;
     }
     </style>
     """,
@@ -165,11 +170,7 @@ def bloco_consolidado_geral():
     
     if not df_combinado.empty:
         df_visual = df_combinado.copy()
-        
-        # Injeção da div da tabela global (Preto no Branco)
-        st.markdown('<div class="tabela-global-exclusiva">', unsafe_allow_html=True)
         st.dataframe(df_visual, use_container_width=True, hide_index=True)
-        st.markdown('</div>', unsafe_allow_html=True)
         
         pdf_data = gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo_geral, df_combinado)
         st.download_button(
@@ -253,11 +254,11 @@ def bloco_cadastro():
         
         if st.form_submit_button("Salvar Operador", use_container_width=True):
             if nu and np:
-                # O usuário agora é persistido diretamente no objeto da sessão ativa globalmente
+                # O operador agora é salvo permanentemente e de forma estável na sessão raiz
                 st.session_state.banco_usuarios[nu] = {"senha": np, "turno_fixo": nt, "role": "operador"}
-                st.success(f"Operador '{nu}' cadastrado com sucesso! Já pode realizar o login.")
+                st.success(f"Operador '{nu}' cadastrado com sucesso! Novo acesso liberado.")
             else:
-                st.error("Por favor, preencha todos os campos obrigatórios.")
+                st.error("Preencha Usuário e Senha para prosseguir.")
 
 def bloco_login():
     st.markdown('<div class="custom-box">', unsafe_allow_html=True)
@@ -287,6 +288,8 @@ def main():
             st.session_state.turno_trabalho = st.sidebar.selectbox("Visualizar Turno", ["1º TURNO", "2º TURNO"], index=0 if st.session_state.turno_trabalho == "1º TURNO" else 1)
             
         st.sidebar.markdown("---")
+        
+        # REMOÇÃO DE FIGURAS DOS BOTÕES DO MENU LATERAL
         if st.sidebar.button("Lançamentos do Turno", use_container_width=True):
             st.session_state.menu_atual = "Lançamentos"
             st.rerun()
