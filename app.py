@@ -20,7 +20,7 @@ if 'banco_usuarios' not in st.session_state:
         "Rubens Ferreira": {"senha": "8036", "turno_fixo": "2º TURNO", "role": "operador"}
     }
 
-# FUNÇÃO PARA PEGAR A HORA ATUAL DO BRASIL (Evita horário futuro do servidor)
+# FUNÇÃO PARA PEGAR A HORA ATUAL DO BRASIL
 def obter_hora_atual_brasil():
     hora_local = datetime.utcnow() - timedelta(hours=3)
     return hora_local.strftime("%H:%M:%S")
@@ -62,19 +62,13 @@ st.markdown(
         border: 1px solid #00ff66 !important;
     }
 
-    /* Tabela do histórico (Fundo branco, letras pretas e FORÇA CENTRALIZAÇÃO) */
-    .tabela-global-exclusiva .stDataFrame {
-        background-color: #ffffff !important;
-        border: 2px solid #ffffff !important;
-        border-radius: 4px !important;
-    }
+    /* Tabelas e Editores (Fundo branco, letras pretas e CENTRALIZADO) */
     .tabela-global-exclusiva td, .tabela-global-exclusiva th, .tabela-global-exclusiva p, .tabela-global-exclusiva span {
         color: #000000 !important;
         font-weight: normal !important;
         text-align: center !important;
     }
-    /* Alinhamento das células internas do dataframe do Streamlit */
-    [data-testid="stTable"] td, [data-testid="stDataFrame"] td {
+    [data-testid="stTable"] td, [data-testid="stDataFrame"] td, [data-testid="stDataEditor"] td {
         text-align: center !important;
     }
     </style>
@@ -106,7 +100,6 @@ def sincronizar_visao_global_com_sheets(df_global_atual):
 def obter_df_combinado():
     df1 = st.session_state.tabela_turno_1.copy()
     df1["Turno"] = "1º TURNO"
-    # Guardamos o índice original para saber qual linha deletar depois
     df1["orig_index"] = df1.index
     
     df2 = st.session_state.tabela_turno_2.copy()
@@ -193,49 +186,45 @@ def bloco_consolidado_geral():
 
     st.markdown("---")
     st.markdown("#### Histórico de Lançamentos Realizados")
+    st.caption("💡 Para excluir: Selecione o quadradinho na esquerda da linha e aperte a lixeira da tabela ou a tecla Delete.")
     
     if not df_combinado.empty:
-        # Criamos o DF de visualização escondendo a coluna de controle interna index
+        # Prepara os dados omitindo a coluna interna
         df_visual = df_combinado.drop(columns=["orig_index"])
         df_estilizado = df_visual.style.set_properties(**{'text-align': 'center'})
         
         st.markdown('<div class="tabela-global-exclusiva">', unsafe_allow_html=True)
-        st.dataframe(df_estilizado, use_container_width=True, hide_index=True)
+        
+        # O st.data_editor cria automaticamente os quadradinhos de seleção e o botão de lixeira no topo da tabela
+        linhas_editadas = st.data_editor(
+            df_estilizado, 
+            use_container_width=True, 
+            hide_index=True,
+            num_rows="dynamic", # Permite a deleção dinâmica de linhas pelo usuário
+            disabled=["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuario", "Hora"]
+        )
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # GERENCIADOR DE EXCLUSÃO NO MÓDULO GLOBAL
-        st.markdown("---")
-        st.markdown("#### ⚠️ Remover Lançamento Incorreto")
-        linhas_opcoes = [
-            f"Linha {i} - [{row['Turno']}] Data: {row['Dia']} | Saldo: {row['Saldo']}t | Por: {row['Usuario']}" 
-            for i, row in df_combinado.iterrows()
-        ]
-        
-        col_sel, col_btn_del = st.columns([4, 1])
-        with col_sel:
-            linha_para_deletar = st.selectbox("Selecione qual registro deseja excluir permanentemente:", options=linhas_opcoes, key="del_global_select")
-        with col_btn_del:
-            if st.button("❌ Excluir Registro", use_container_width=True):
-                idx_combinado = linhas_opcoes.index(linha_para_deletar)
-                registro_alvo = df_combinado.iloc[idx_combinado]
-                
-                turno_alvo = registro_alvo["Turno"]
-                original_idx = registro_alvo["orig_index"]
-                
-                # Remove do turno correspondente de forma correta
-                if turno_alvo == "1º TURNO":
-                    st.session_state.tabela_turno_1 = st.session_state.tabela_turno_1.drop(original_idx).reset_index(drop=True)
+        # Captura se o usuário deletou alguma linha pelo "quadradinho" da tabela
+        if len(linhas_editadas) < len(df_visual):
+            indices_mantidos = linhas_editadas.index.tolist()
+            # Identifica quais foram os registros removidos usando a nossa coluna oculta de controle
+            df_removidos = df_combinado[~df_combinado.index.isin(indices_mantidos)]
+            
+            for _, row in df_removidos.iterrows():
+                t_alvo = row["Turno"]
+                orig_idx = row["orig_index"]
+                if t_alvo == "1º TURNO":
+                    st.session_state.tabela_turno_1 = st.session_state.tabela_turno_1.drop(orig_idx).reset_index(drop=True)
                 else:
-                    st.session_state.tabela_turno_2 = st.session_state.tabela_turno_2.drop(original_idx).reset_index(drop=True)
-                
-                # Recarrega o DF combinado atualizado para mandar pro Sheets
-                df_atualizado_enviar = obter_df_combinado()
-                if not df_atualizado_enviar.empty:
-                    df_atualizado_enviar = df_atualizado_enviar.drop(columns=["orig_index"])
-                sincronizar_visao_global_com_sheets(df_atualizado_enviar)
-                
-                st.success("Lançamento removido com sucesso!")
-                st.rerun()
+                    st.session_state.tabela_turno_2 = st.session_state.tabela_turno_2.drop(orig_idx).reset_index(drop=True)
+            
+            # Recalcula e sincroniza
+            df_atualizado = obter_df_combinado()
+            if not df_atualizado.empty:
+                df_atualizado = df_atualizado.drop(columns=["orig_index"])
+            sincronizar_visao_global_com_sheets(df_atualizado)
+            st.rerun()
         
         st.markdown("---")
         pdf_data = gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo_geral, df_combinado.drop(columns=["orig_index"]))
