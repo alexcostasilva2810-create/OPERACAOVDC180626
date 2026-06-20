@@ -11,20 +11,38 @@ from streamlit_gsheets import GSheetsConnection
 # Configuração da página
 st.set_page_config(page_title="Zion Tecnologia - Gestão Portuária", page_icon="🚢", layout="wide")
 
-# Estilização CSS segura para manter o tema escuro/neon sem quebrar elementos estruturais
+# Estilização CSS para forçar textos em preto e remover decorações excessivas
 st.markdown(
     """
     <style>
-    .stApp { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
-    p, label, .stMarkdown p { color: #00ff66 !important; font-weight: bold !important; }
+    /* Fundo da aplicação */
+    .stApp { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); }
+    
+    /* Forçar cor preta em todos os textos comuns, labels e descrições */
+    p, label, .stMarkdown p, .stSelectbox label, .stInputField label, .stDateInput label { 
+        color: #000000 !important; 
+        font-weight: 600 !important; 
+    }
+    
+    /* Customização dos títulos principais */
+    h1, h2, h3, h4 { color: #0f172a !important; font-weight: bold !important; }
+    
+    /* Box customizado para o Login */
     .custom-box {
-        background-color: rgba(15, 23, 42, 0.8);
-        padding: 1.5rem;
+        background-color: #ffffff;
+        padding: 2rem;
         border-radius: 12px;
-        border: 2px solid #00ff66;
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         margin-bottom: 1rem;
     }
-    h1, h2, h3, h4 { color: #38bdf8 !important; font-weight: bold !important; }
+    
+    /* Ajuste para as tabelas nativas ficarem bem legíveis */
+    .stDataFrame {
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background-color: #ffffff;
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -152,24 +170,24 @@ def bloco_consolidado_geral():
         
         pdf_data = gerar_pdf_reportlab(p1, p2, p3, p4, p5, saldo_geral, df_combinado)
         st.download_button(
-            label="📥 Exportar Relatório Global em PDF", data=pdf_data,
+            label="Exportar Relatório Global em PDF", data=pdf_data,
             file_name="Relatorio_Global_Carregamento.pdf", mime="application/pdf", use_container_width=True
         )
     else:
         st.info("Nenhum dado lançado nos turnos até o momento.")
 
 def bloco_painel_poroes(turno_atual):
-    st.markdown(f"<h2>📊 Lançamentos Atuais - {turno_atual}</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2>Lançamentos Atuais - {turno_atual}</h2>", unsafe_allow_html=True)
     chave_tabela = 'tabela_turno_1' if turno_atual == "1º TURNO" else 'tabela_turno_2'
     df_atual = st.session_state[chave_tabela]
 
     if st.session_state.edit_mode and st.session_state.edit_index is not None:
         row_edit = df_atual.iloc[st.session_state.edit_index]
         val_p1, val_p2, val_p3, val_p4, val_p5 = int(row_edit["Porão 1"]), int(row_edit["Porão 2"]), int(row_edit["Porão 3"]), int(row_edit["Porão 4"]), int(row_edit.get("Porão 5", 0))
-        titulo_box, texto_botao = "✏️ Alterar Lançamento", "💾 Salvar Alterações"
+        titulo_box, texto_botao = "Alterar Lançamento", "Salvar Alterações"
     else:
         val_p1, val_p2, val_p3, val_p4, val_p5 = 0, 0, 0, 0, 0
-        titulo_box, texto_botao = "➕ Novo Lançamento (5 Porões)", "Gravar Lançamento"
+        titulo_box, texto_botao = "Novo Lançamento (5 Porões)", "Gravar Lançamento"
 
     with st.expander(titulo_box, expanded=True):
         col1, col2, col3, col4, col5, col6 = st.columns(6)
@@ -211,21 +229,20 @@ def bloco_painel_poroes(turno_atual):
         st.markdown("#### Histórico do Turno")
         st.dataframe(df_atual, use_container_width=True, hide_index=True)
         
-        # Correção da expressão list generator adicionando colchetes [...]
         linhas_opcoes = [f"Linha {i} - Data: {row['Dia']} (Saldo: {row['Saldo']}t)" for i, row in df_atual.iterrows()]
         col_ed, col_btn_ed = st.columns([4, 1])
         with col_ed:
             linha_selecionada = st.selectbox("Selecione um lançamento para editar:", options=linhas_opcoes)
         with col_btn_ed:
-            if st.button("✏️ Editar Linha", use_container_width=True):
+            if st.button("Editar Linha", use_container_width=True):
                 st.session_state.edit_mode = True
-                st.session_state.edit_index = lines_index = linhas_opcoes.index(linha_selecionada)
+                st.session_state.edit_index = linhas_opcoes.index(linha_selecionada)
                 st.rerun()
     else:
         st.info("Nenhum registro lançado para este turno.")
 
 def bloco_cadastro():
-    st.markdown("<h2>👥 Cadastrar Novo Operador</h2>", unsafe_allow_html=True)
+    st.markdown("<h2>Cadastrar Novo Operador</h2>", unsafe_allow_html=True)
     with st.form("form_cadastro"):
         nu = st.text_input("Definir Usuário")
         np = st.text_input("Definir Senha", type="password")
@@ -262,18 +279,18 @@ def main():
             st.session_state.turno_trabalho = st.sidebar.selectbox("Visualizar Turno", ["1º TURNO", "2º TURNO"], index=0 if st.session_state.turno_trabalho == "1º TURNO" else 1)
             
         st.sidebar.markdown("---")
-        if st.sidebar.button("📋 Lançamentos do Turno", use_container_width=True):
+        if st.sidebar.button("Lançamentos do Turno", use_container_width=True):
             st.session_state.menu_atual = "Lançamentos"
             st.rerun()
         if st.session_state.role == "admin":
-            if st.sidebar.button("📊 Global (Consolidado)", use_container_width=True):
+            if st.sidebar.button("Global (Consolidado)", use_container_width=True):
                 st.session_state.menu_atual = "Global"
                 st.rerun()
-            if st.sidebar.button("👤 Cadastrar Operador", use_container_width=True):
+            if st.sidebar.button("Cadastrar Operador", use_container_width=True):
                 st.session_state.menu_atual = "Cadastro"
                 st.rerun()
                 
-        if st.sidebar.button("🚪 Sair", use_container_width=True):
+        if st.sidebar.button("Sair", use_container_width=True):
             st.session_state.logged_in = False
             st.rerun()
             
