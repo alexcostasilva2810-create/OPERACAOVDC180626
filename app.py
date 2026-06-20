@@ -56,6 +56,8 @@ COLUNAS_SHEETS = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4"
 
 def carregar_dados_do_sheets():
     try:
+        # IMPORTANTE: Força o app a limpar o cache antigo para puxar o dado real que acabamos de salvar
+        st.cache_data.clear()
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="Global", ttl=0)
         if df is None or df.empty:
@@ -71,6 +73,7 @@ def sincronizar_com_sheets(df_completo):
         df_salvar = df_completo.copy()
         df_salvar.columns = COLUNAS_SHEETS
         conn.update(worksheet="Global", data=df_salvar)
+        st.cache_data.clear() # Limpa o cache imediatamente após a gravação
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
 
@@ -199,7 +202,7 @@ def bloco_painel_poroes(turno_atual):
         val_p1 = val_p2 = val_p3 = val_p4 = val_p5 = 0
         texto_botao = "Gravar Lançamento"
 
-    # INPUTS EM LINHA DIRETA SEM CONTAINERS PROBLEMÁTICOS
+    # INPUTS DIRETOS EM LINHA
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1: data_lan = st.date_input("Data", format="DD/MM/YYYY", key=f"dt_{turno_atual}")
     with col2: v1 = st.number_input("Porão 1 (t)", min_value=0, step=50, value=val_p1, key=f"p1_{turno_atual}")
@@ -214,6 +217,7 @@ def bloco_painel_poroes(turno_atual):
             hora_correta = obter_hora_atual_brasil()
             saldo_calculado = v1 + v2 + v3 + v4 + v5
             
+            # Puxa atualizado direto do banco limpo de cache
             df_atualizar_salvamento = carregar_dados_do_sheets()
             
             if st.session_state.edit_mode:
@@ -244,6 +248,8 @@ def bloco_painel_poroes(turno_atual):
             st.session_state.edit_mode, st.session_state.edit_index = False, None
             st.rerun()
 
+    st.markdown("---")
+    # TABELA DO HISTÓRICO GARANTIDA ABAIXO DO LANÇAMENTO
     if not df_turno.empty:
         st.markdown("#### Histórico do Turno")
         df_mostrar = df_turno.drop(columns=['index'])
@@ -260,7 +266,7 @@ def bloco_painel_poroes(turno_atual):
                 st.session_state.edit_index = lines_opcoes.index(linha_selecionada)
                 st.rerun()
     else:
-        st.info("Nenhum registro lançado para este turno.")
+        st.info("Nenhum registro lançado para este turno na planilha.")
 
 def bloco_cadastro():
     st.markdown("<h2>Cadastrar Novo Operador</h2>", unsafe_allow_html=True)
