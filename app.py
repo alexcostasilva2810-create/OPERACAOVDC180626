@@ -1,11 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
-from io import BytesIO
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
+from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
 # -----------------------------------------------------------------------------
@@ -73,11 +68,8 @@ if "usuarios_db" not in st.session_state:
 REFERENCIA_CONTRATUAL = 50000.0
 COLUNAS_PADRAO = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
 
-# URL da sua planilha fornecida
-URL_PLANILHA = "https://docs.google.com/spreadsheets/d/187LiSHFECqYM2wwYBnAUAfr3WzL1pwG5QtccKcEUBSk/edit"
-
 # -----------------------------------------------------------------------------
-# CONEXÃO COM O GOOGLE SHEETS
+# CONEXÃO OFICIAL COM O GOOGLE SHEETS VIA STREAMLIT SECRETS
 # -----------------------------------------------------------------------------
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -87,11 +79,12 @@ except Exception:
 def carregar_dados_nuvem():
     if conn:
         try:
-            df = conn.read(spreadsheet=URL_PLANILHA, ttl=0)
+            # Lê os dados usando as credenciais configuradas na tela
+            df = conn.read(ttl=0)
             if df.empty or len(df.columns) < 2:
                 return pd.DataFrame(columns=COLUNAS_PADRAO)
             
-            # Ajusta cabeçalhos antigos caso existam
+            # Corrige cabeçalhos antigos se necessário
             mapeamento = {col: col.replace("Porção", "Porão") for col in df.columns if "Porção" in col}
             if mapeamento:
                 df = df.rename(columns=mapeamento)
@@ -112,15 +105,11 @@ def carregar_dados_nuvem():
 def atualizar_planilha_nuvem(df_novo):
     if conn:
         try:
-            # GARANTIA EXTRALÉVIO: Se o DataFrame enviado estiver vazio ou sem colunas, força a estrutura base
-            if df_novo.empty:
-                df_novo = pd.DataFrame(columns=COLUNAS_PADRAO)
-            
-            # Sincronização direta na URL base apontando os dados completos estruturados
-            conn.update(spreadsheet=URL_PLANILHA, data=df_novo)
+            # Escreve de volta com autorização total da Service Account
+            conn.update(data=df_novo)
             return True
         except Exception as e:
-            st.error(f"Erro na sincronização com o Google Sheets: {e}")
+            st.error(f"Erro na sincronização: {e}")
             return False
     return False
 
@@ -128,7 +117,7 @@ if "dados_operacao" not in st.session_state:
     st.session_state.dados_operacao = carregar_dados_nuvem()
 
 # -----------------------------------------------------------------------------
-# TELA DE LOGIN (VÍDEO 2)
+# TELA DE LOGIN
 # -----------------------------------------------------------------------------
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align: center; font-size: 50px;'>ZION</h1>", unsafe_allow_html=True)
@@ -159,7 +148,7 @@ if not st.session_state.logged_in:
                 st.error("Usuário ou senha incorretos.")
 
 # -----------------------------------------------------------------------------
-# INTERFACE DO SISTEMA LOGADO
+# INTERFACE LOGADA
 # -----------------------------------------------------------------------------
 else:
     df_atual = st.session_state.dados_operacao
@@ -190,15 +179,11 @@ else:
     else:
         turno_trabalho = st.sidebar.selectbox("Visualizar Turno", ["1º TURNO", "2º TURNO"])
 
-    # -------------------------------------------------------------------------
-    # MÓDULO LANÇAMENTOS DO TURNO
-    # -------------------------------------------------------------------------
     if st.session_state.menu_atual == "Lançamentos do Turno":
         st.header(f"Lançamentos Atuais - {turno_trabalho}")
         
         with st.expander("▼ Novo Lançamento (5 Porões)", expanded=True):
             col_data, col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(6)
-            
             fuso_local = datetime.now()
             
             with col_data:
@@ -232,18 +217,15 @@ else:
                 "Hora do Registro": fuso_local.strftime("%H:%M:%S")
             }
             
-            # Concatena localmente
             novo_df_linha = pd.DataFrame([novo_registro])
             st.session_state.dados_operacao = pd.concat([st.session_state.dados_operacao, novo_df_linha], ignore_index=True)
             
-            # Força o envio estruturado limpando a planilha em branco na nuvem
             atualizar_planilha_nuvem(st.session_state.dados_operacao[COLUNAS_PADRAO])
-            
             st.success("Lançamento efetuado e sincronizado com sucesso! 🚀")
             st.rerun()
 
         st.subheader("Histórico do Turno")
-        if not df_atual.empty and "Turno" in df_atual.columns:
+        if not df_atual.empty:
             df_turno = df_atual[df_atual["Turno"] == turno_trabalho]
             if not df_turno.empty:
                 st.dataframe(df_turno[COLUNAS_PADRAO], use_container_width=True, hide_index=True)
@@ -252,19 +234,16 @@ else:
         else:
             st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
 
-    # -------------------------------------------------------------------------
-    # MÓDULO GLOBAL (Apenas Admins acessam)
-    # -------------------------------------------------------------------------
     elif st.session_state.menu_atual == "Global (Consolidado)" and st.session_state.cargo_atual == "admin":
         st.header("Painel Gerencial Global (5 Porões)")
         
         if not df_atual.empty:
-            total_p1 = df_atual["Porão 1"].sum() if "Porão 1" in df_atual.columns else 0.0
-            total_p2 = df_atual["Porão 2"].sum() if "Porão 2" in df_atual.columns else 0.0
-            total_p3 = df_atual["Porão 3"].sum() if "Porão 3" in df_atual.columns else 0.0
-            total_p4 = df_atual["Porão 4"].sum() if "Porão 4" in df_atual.columns else 0.0
-            total_p5 = df_atual["Porão 5"].sum() if "Porão 5" in df_atual.columns else 0.0
-            total_lancado = df_atual["Saldo"].sum() if "Saldo" in df_atual.columns else 0.0
+            total_p1 = df_atual["Porão 1"].sum()
+            total_p2 = df_atual["Porão 2"].sum()
+            total_p3 = df_atual["Porão 3"].sum()
+            total_p4 = df_atual["Porão 4"].sum()
+            total_p5 = df_atual["Porão 5"].sum()
+            total_lancado = df_atual["Saldo"].sum()
         else:
             total_p1 = total_p2 = total_p3 = total_p4 = total_p5 = total_lancado = 0.0
             
@@ -291,32 +270,21 @@ else:
             st.dataframe(df_atual[COLUNAS_PADRAO], use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum dado lançado nos turnos até o momento.")
-            
-        st.button("Exportar Relatório Global em PDF", type="secondary", use_container_width=True)
 
-    # -------------------------------------------------------------------------
-    # MÓDULO CADASTRO DE OPERADORES (Apenas Admins acessam)
-    # -------------------------------------------------------------------------
     elif st.session_state.menu_atual == "Cadastrar Operador" and st.session_state.cargo_atual == "admin":
         st.header("Cadastrar Novo Operador")
-        
         novo_user = st.text_input("Definir Usuário", key="cad_user")
         nova_senha = st.text_input("Definir Senha", type="password", key="cad_pass")
         cargo_selecionado = st.selectbox("Cargo", ["operador", "admin"], key="cad_cargo")
         
         if cargo_selecionado == "admin":
             turno_fixo = "Todos"
-            st.write("📌 *Administradores possuem acesso global a ambos os turnos.*")
         else:
             turno_fixo = st.selectbox("Turno Fixo", ["1º TURNO", "2º TURNO"], key="cad_turno")
         
         if st.button("Salvar Operador", use_container_width=True):
             if novo_user and nova_senha:
-                st.session_state.usuarios_db[novo_user] = {
-                    "senha": nova_senha,
-                    "cargo": cargo_selecionado,
-                    "turno": turno_fixo
-                }
-                st.success(f"Usuário '{novo_user}' cadastrado com sucesso! Ele já pode fazer login.")
+                st.session_state.usuarios_db[novo_user] = {"senha": nova_senha, "cargo": cargo_selecionado, "turno": turno_fixo}
+                st.success(f"Usuário '{novo_user}' cadastrado com sucesso!")
             else:
-                st.error("Preencha todos os campos para cadastrar.")
+                st.error("Preencha todos os campos.")
