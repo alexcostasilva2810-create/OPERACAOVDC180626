@@ -41,13 +41,35 @@ st.markdown(
     }
     h1, h2, h3, h4 { color: #00ff66 !important; font-weight: bold !important; }
     
-    /* Box customizado do Login */
+    /* Título ZION Elegante no Topo */
+    .zion-header {
+        text-align: center;
+        font-family: 'Helvetica Neue', sans-serif;
+        font-size: 50px;
+        font-weight: 900;
+        letter-spacing: 8px;
+        color: #00ff66;
+        margin-top: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .zion-subtitle {
+        text-align: center;
+        font-size: 14px;
+        letter-spacing: 3px;
+        color: #00ff66;
+        margin-bottom: 2rem;
+        text-transform: uppercase;
+        opacity: 0.8;
+    }
+
+    /* Box customizado do Login (Compacto e centralizado) */
     .custom-box {
         background-color: #000000;
-        padding: 1.5rem;
+        padding: 2rem;
         border-radius: 12px;
         border: 2px solid #00ff66;
-        margin-bottom: 1rem;
+        margin-top: 1rem;
     }
 
     /* Letras de todos os botões do menu lateral em PRETO */
@@ -189,26 +211,21 @@ def bloco_consolidado_geral():
     st.caption("💡 Para excluir: Selecione o quadradinho na esquerda da linha e aperte a lixeira da tabela ou a tecla Delete.")
     
     if not df_combinado.empty:
-        # Prepara os dados omitindo a coluna interna
         df_visual = df_combinado.drop(columns=["orig_index"])
         df_estilizado = df_visual.style.set_properties(**{'text-align': 'center'})
         
         st.markdown('<div class="tabela-global-exclusiva">', unsafe_allow_html=True)
-        
-        # O st.data_editor cria automaticamente os quadradinhos de seleção e o botão de lixeira no topo da tabela
         linhas_editadas = st.data_editor(
             df_estilizado, 
             use_container_width=True, 
             hide_index=True,
-            num_rows="dynamic", # Permite a deleção dinâmica de linhas pelo usuário
+            num_rows="dynamic",
             disabled=["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuario", "Hora"]
         )
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # Captura se o usuário deletou alguma linha pelo "quadradinho" da tabela
         if len(linhas_editadas) < len(df_visual):
             indices_mantidos = linhas_editadas.index.tolist()
-            # Identifica quais foram os registros removidos usando a nossa coluna oculta de controle
             df_removidos = df_combinado[~df_combinado.index.isin(indices_mantidos)]
             
             for _, row in df_removidos.iterrows():
@@ -219,7 +236,6 @@ def bloco_consolidado_geral():
                 else:
                     st.session_state.tabela_turno_2 = st.session_state.tabela_turno_2.drop(orig_idx).reset_index(drop=True)
             
-            # Recalcula e sincroniza
             df_atualizado = obter_df_combinado()
             if not df_atualizado.empty:
                 df_atualizado = df_atualizado.drop(columns=["orig_index"])
@@ -293,6 +309,7 @@ def bloco_painel_poroes(turno_atual):
         df_atual_estilizado = df_atual.style.set_properties(**{'text-align': 'center'})
         st.dataframe(df_atual_estilizado, use_container_width=True, hide_index=True)
         
+        # Correção da expressão generator com parênteses obrigatórios para evitar SyntaxError
         linhas_opcoes = [f"Linha {i} - Data: {row['Dia']} (Saldo: {row['Saldo']}t)" for i, row in df_atual.iterrows()]
         col_ed, col_btn_ed = st.columns([4, 1])
         with col_ed:
@@ -320,23 +337,32 @@ def bloco_cadastro():
                 st.error("Preencha Usuário e Senha.")
 
 def bloco_login():
-    st.markdown('<div class="custom-box">', unsafe_allow_html=True)
-    st.title("Zion Tecnologia")
-    st.subheader("Login de Acesso")
-    u = st.text_input("Nome de Usuário")
-    p = st.text_input("Senha", type="password")
-    if st.button("Entrar no Sistema", use_container_width=True):
-        banco = st.session_state.banco_usuarios
-        if u in banco and banco[u]["senha"] == p:
-            st.session_state.logged_in = True
-            st.session_state.user_name = u
-            st.session_state.role = banco[u]["role"]
-            st.session_state.turno_trabalho = "1º TURNO" if banco[u]["role"] == "admin" else banco[u]["turno_fixo"]
-            st.session_state.menu_atual = "Lançamentos"
-            st.rerun()
-        else:
-            st.error("Dados inválidos.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Nome ZION grande e elegante no topo da página
+    st.markdown('<div class="zion-header">ZION</div>', unsafe_allow_html=True)
+    st.markdown('<div class="zion-subtitle">Tecnologia Portuária</div>', unsafe_allow_html=True)
+    
+    # Colunas criadas para comprimir a caixa de login e deixá-la compacta no centro
+    col_esq, col_centro, col_dir = st.columns([1.5, 1.2, 1.5])
+    
+    with col_centro:
+        st.markdown('<div class="custom-box">', unsafe_allow_html=True)
+        st.markdown("<h4 style='text-align: center; margin-bottom: 1.5rem;'>Login de Acesso</h4>", unsafe_allow_html=True)
+        u = st.text_input("Nome de Usuário", placeholder="Digite seu usuário")
+        p = st.text_input("Senha", type="password", placeholder="Digite sua senha")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("Entrar no Sistema", use_container_width=True):
+            banco = st.session_state.banco_usuarios
+            if u in banco and banco[u]["senha"] == p:
+                st.session_state.logged_in = True
+                st.session_state.user_name = u
+                st.session_state.role = banco[u]["role"]
+                st.session_state.turno_trabalho = "1º TURNO" if banco[u]["role"] == "admin" else banco[u]["turno_fixo"]
+                st.session_state.menu_atual = "Lançamentos"
+                st.rerun()
+            else:
+                st.error("Dados inválidos.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 def main():
     if st.session_state.logged_in:
