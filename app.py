@@ -92,18 +92,16 @@ def aplicar_estilo_visual():
     )
 
 # =====================================================================
-# BLOCO: BANCO DE DADOS EM MEMÓRIA COM PERMISSÕES DEFINIDAS
+# BLOCO: BANCO DE DADOS EM MEMÓRIA
 # =====================================================================
 def inicializar_dados():
     if 'banco_usuarios' not in st.session_state:
         st.session_state.banco_usuarios = {
             "admin": {"senha": "1234", "role": "admin"},
             "admin2": {"senha": "5678", "role": "admin"},
-            "Rubens Ferreira": {"senha": "8036", "turno_fixo": "2º TURNO", "role": "operador"},
-            "Tallison Menezes": {"senha": "4991", "turno_fixo": "1º TURNO", "role": "operador"},
-            "Caio Rosario": {"senha": "6244", "turno_fixo": "1º TURNO", "role": "operador"},
-            "Cleiyvson Cardoso": {"senha": "4194", "turno_fixo": "2º TURNO", "role": "operador"}
-            }
+            "alex": {"senha": "zion2026", "turno_fixo": "1º TURNO", "role": "operador"},
+            "Rubens Ferreira": {"senha": "8036", "turno_fixo": "2º TURNO", "role": "operador"}
+        }
     
     if 'logged_in' not in st.session_state: st.session_state.logged_in = False
     if 'user_name' not in st.session_state: st.session_state.user_name = ""
@@ -133,7 +131,7 @@ def gerar_pdf_reportlab(p1, p2, p3, p4, saldo, df_combinado):
     heading_style = ParagraphStyle('HeadingStyle', parent=styles['Heading2'], fontSize=13, textColor=colors.HexColor('#0284c7'), spaceBefore=15, spaceAfter=10)
     normal_style = ParagraphStyle('NormalStyle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#1e293b'))
 
-    story.append(Paragraph("Relatório Consolidado de Carregamento", title_style))
+    story.append(Paragraph("Relatório Consolidado de Carregamento - Global", title_style))
     story.append(Paragraph("<b>Zion Tecnologia</b> — Sistema de Controle Portuário Integrado", normal_style))
     story.append(Spacer(1, 15))
     
@@ -151,13 +149,13 @@ def gerar_pdf_reportlab(p1, p2, p3, p4, saldo, df_combinado):
     story.append(t_resumo)
     story.append(Spacer(1, 20))
     
-    story.append(Paragraph("Demonstrativo Detalhado de Movimentações", heading_style))
-    dados_tabela = [['Data da Operação', 'Porão 1 (t)', 'Porão 2 (t)', 'Porão 3 (t)', 'Porão 4 (t)', 'Saldo Diário (t)']]
+    story.append(Paragraph("Demonstrativo Detalhado de Movimentações (Todos os Turnos)", heading_style))
+    dados_tabela = [['Turno', 'Data da Operação', 'Porão 1 (t)', 'Porão 2 (t)', 'Porão 3 (t)', 'Porão 4 (t)', 'Saldo (t)']]
     for _, row in df_combinado.iterrows():
-        dados_tabela.append([str(row['Dia']), str(int(row['Porão 1'])), str(int(row['Porão 2'])), str(int(row['Porão 3'])), str(int(row['Porão 4'])), str(int(row['Saldo']))])
-    dados_tabela.append(['TOTAL CONSOLIDADO', str(int(p1)), str(int(p2)), str(int(p3)), str(int(p4)), str(int(saldo))])
+        dados_tabela.append([str(row['Turno']), str(row['Dia']), str(int(row['Porão 1'])), str(int(row['Porão 2'])), str(int(row['Porão 3'])), str(int(row['Porão 4'])), str(int(row['Saldo']))])
+    dados_tabela.append(['-', 'TOTAL CONSOLIDADO', str(int(p1)), str(int(p2)), str(int(p3)), str(int(p4)), str(int(saldo))])
     
-    t_dados = Table(dados_tabela, colWidths=[120, 80, 80, 80, 80, 100])
+    t_dados = Table(dados_tabela, colWidths=[70, 90, 75, 75, 75, 75, 95])
     t_dados.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e293b')),
         ('TEXTCOLOR', (0,0), (-1,0), colors.white),
@@ -171,14 +169,18 @@ def gerar_pdf_reportlab(p1, p2, p3, p4, saldo, df_combinado):
     return buffer.getvalue()
 
 # =====================================================================
-# MÓDULO 3: VISÃO CONSOLIDADA (APENAS ADMINISTRADORES)
+# MÓDULO 3: VISÃO GLOBAL CONSOLIDADA (APENAS ADMINISTRADORES)
 # =====================================================================
 def bloco_consolidado_geral():
-    st.markdown("<h2>🌍 Painel Gerencial Consolidado (Turno 1 + Turno 2)</h2>", unsafe_allow_html=True)
+    st.markdown("<h2>🌍 Painel Gerencial Global (Turno 1 + Turno 2)</h2>", unsafe_allow_html=True)
     
     df1 = st.session_state.tabela_turno_1.copy()
-    df2 = st.session_state.tabela_turno_2.copy()
+    df1["Turno"] = "1º TURNO"
     
+    df2 = st.session_state.tabela_turno_2.copy()
+    df2["Turno"] = "2º TURNO"
+    
+    # Junta as duas tabelas mantendo os registros individuais e independentes
     df_combinado = pd.concat([df1, df2], ignore_index=True)
     
     p1_total = pd.to_numeric(df1["Porão 1"]).sum() if not df1.empty else 0
@@ -194,24 +196,38 @@ def bloco_consolidado_geral():
     p4_total += pd.to_numeric(df2["Porão 4"]).sum() if not df2.empty else 0
     
     saldo_geral = p1_total + p2_total + p3_total + p4_total
+    
+    # Lógica de Abatimento da Referência Contratual
+    meta_referencia = 50000
+    falta_atingir = meta_referencia - saldo_geral if (meta_referencia - saldo_geral) > 0 else 0
 
+    # Grid de Indicadores Superiores
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Total Porão 1", f"{p1_total} t")
-    c2.metric("Total Porão 2", f"{p2_total} t")
-    c3.metric("Total Porão 3", f"{p3_total} t")
-    c4.metric("Total Porão 4", f"{p4_total} t")
-    c5.metric("SALDO GLOBAL NAVIO", f"{saldo_geral} t")
+    c1.metric("Total Porão 1", f"{int(p1_total)} t")
+    c2.metric("Total Porão 2", f"{int(p2_total)} t")
+    c3.metric("Total Porão 3", f"{int(p3_total)} t")
+    c4.metric("Total Porão 4", f"{int(p4_total)} t")
+    c5.metric("TOTAL JÁ LANÇADO", f"{int(saldo_geral)} t")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Bloco de Referência (Abatimento)
+    meta_col1, meta_col2 = st.columns(2)
+    with meta_col1:
+        st.metric("REFERÊNCIA CONTRATUAL", f"{meta_referencia} t")
+    with meta_col2:
+        st.metric("QUANTO FALTA ATINGIR", f"{int(falta_atingir)} t")
 
     st.markdown("---")
-    st.markdown("#### Histórico Combinado por Dia")
+    st.markdown("#### Histórico de Todos os Lançamentos Realizados")
     
     if not df_combinado.empty:
         df_combinado[["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]] = df_combinado[["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]].apply(pd.to_numeric).fillna(0)
-        df_combinado = df_combinado.groupby("Dia", as_index=False).sum()
         
-        html_table = "<table><thead><tr><th>Dia</th><th>Porão 1</th><th>Porão 2</th><th>Porão 3</th><th>Porão 4</th><th>Saldo</th></tr></thead><tbody>"
+        # Tabela Detalhada Individualizada por Lançamento
+        html_table = "<table><thead><tr><th>Turno</th><th>Dia</th><th>Porão 1</th><th>Porão 2</th><th>Porão 3</th><th>Porão 4</th><th>Saldo</th></tr></thead><tbody>"
         for _, r in df_combinado.iterrows():
-            html_table += f"<tr><td>{r['Dia']}</td><td>{int(r['Porão 1'])}</td><td>{int(r['Porão 2'])}</td><td>{int(r['Porão 3'])}</td><td>{int(r['Porão 4'])}</td><td>{int(r['Saldo'])}</td></tr>"
+            html_table += f"<tr><td>{r['Turno']}</td><td>{r['Dia']}</td><td>{int(r['Porão 1'])} t</td><td>{int(r['Porão 2'])} t</td><td>{int(r['Porão 3'])} t</td><td>{int(r['Porão 4'])} t</td><td>{int(r['Saldo'])} t</td></tr>"
         html_table += "</tbody></table>"
         st.markdown(html_table, unsafe_allow_html=True)
         
@@ -219,9 +235,9 @@ def bloco_consolidado_geral():
         pdf_data = gerar_pdf_reportlab(p1_total, p2_total, p3_total, p4_total, saldo_geral, df_combinado)
         
         st.download_button(
-            label="📥 Exportar Relatório em PDF",
+            label="📥 Exportar Relatório Global em PDF",
             data=pdf_data,
-            file_name="Relatorio_Consolidado_Carregamento.pdf",
+            file_name="Relatorio_Global_Carregamento.pdf",
             mime="application/pdf",
             use_container_width=True
         )
@@ -361,7 +377,6 @@ def main():
         st.sidebar.title("Zion Operações")
         st.sidebar.markdown(f"**Usuário:** {st.session_state.user_name} ({st.session_state.role.upper()})")
         
-        # O Admin ganha controle para alternar dinamicamente e manipular dados dos dois turnos
         if st.session_state.role == "admin":
             st.session_state.turno_trabalho = st.sidebar.selectbox(
                 "Visualizar Qual Turno?", 
@@ -378,8 +393,8 @@ def main():
             st.rerun()
             
         if st.session_state.role == "admin":
-            if st.sidebar.button("📊 Visão Master (Consolidado)", use_container_width=True):
-                st.session_state.menu_atual = "Visão Master"
+            if st.sidebar.button("📊 Global (Consolidado)", use_container_width=True):
+                st.session_state.menu_atual = "Global"
                 st.rerun()
             if st.sidebar.button("👤 Cadastrar Operador", use_container_width=True):
                 st.session_state.menu_atual = "Cadastro"
@@ -392,7 +407,7 @@ def main():
             
         if st.session_state.menu_atual == "Lançamentos":
             bloco_painel_poroes(st.session_state.turno_trabalho)
-        elif st.session_state.menu_atual == "Visão Master" and st.session_state.role == "admin":
+        elif st.session_state.menu_atual == "Global" and st.session_state.role == "admin":
             bloco_consolidado_geral()
         elif st.session_state.menu_atual == "Cadastro" and st.session_state.role == "admin":
             bloco_cadastro()
