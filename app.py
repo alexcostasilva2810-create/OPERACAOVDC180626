@@ -64,7 +64,7 @@ st.markdown(
         opacity: 0.8;
     }
 
-    /* Container customizado do Login (Compacto e sem bordas adicionais vazias) */
+    /* Container customizado do Login */
     .login-container {
         border: 2px solid #00ff66;
         border-radius: 12px;
@@ -112,12 +112,18 @@ if 'edit_index' not in st.session_state: st.session_state.edit_index = None
 
 def sincronizar_visao_global_com_sheets(df_global_atual):
     try:
+        # Força a criação de uma conexão limpa com o Google Sheets
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_salvar = df_global_atual.copy()
+        
+        # Mapeia as colunas do seu DataFrame local com os cabeçalhos exatos da sua planilha online
         df_salvar.columns = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
+        
+        # Atualiza a Worksheet 'Global' e força a limpeza de cache local do Streamlit imediatamente
         conn.update(worksheet="Global", data=df_salvar)
+        st.cache_data.clear() # <- CRUCIAL: Limpa a memória temporária para enviar instantaneamente!
     except Exception as e:
-        pass
+        st.error(f"Erro ao salvar na planilha: {e}")
 
 def obter_df_combinado():
     df1 = st.session_state.tabela_turno_1.copy()
@@ -336,15 +342,12 @@ def bloco_cadastro():
                 st.error("Preencha Usuário e Senha.")
 
 def bloco_login():
-    # Cabeçalho limpo com ZION
     st.markdown('<div class="zion-header">ZION</div>', unsafe_allow_html=True)
     st.markdown('<div class="zion-subtitle">Tecnologia Portuária</div>', unsafe_allow_html=True)
     
-    # Grid para centralização perfeita e compacta do box
     col_esq, col_centro, col_dir = st.columns([1.5, 1.2, 1.5])
     
     with col_centro:
-        # Iniciando diretamente a div interna sem chamadas extras de markdown vazias
         st.markdown(
             '<div class="login-container">'
             '<h4 style="text-align: center; margin-top: 0px; margin-bottom: 20px; color: #00ff66;">Login de Acesso</h4>', 
