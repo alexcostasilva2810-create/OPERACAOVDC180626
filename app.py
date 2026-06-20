@@ -25,7 +25,7 @@ def obter_hora_atual_brasil():
     hora_local = datetime.utcnow() - timedelta(hours=3)
     return hora_local.strftime("%H:%M:%S")
 
-# 2. ESTILIZAÇÃO CSS COMPLETA (SEM O RETÂNGULO VAZIO NO LOGIN)
+# 2. ESTILIZAÇÃO CSS COMPLETA
 st.markdown(
     """
     <style>
@@ -56,7 +56,6 @@ COLUNAS_SHEETS = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4"
 
 def carregar_dados_do_sheets():
     try:
-        # IMPORTANTE: Força o app a limpar o cache antigo para puxar o dado real que acabamos de salvar
         st.cache_data.clear()
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="Global", ttl=0)
@@ -73,7 +72,7 @@ def sincronizar_com_sheets(df_completo):
         df_salvar = df_completo.copy()
         df_salvar.columns = COLUNAS_SHEETS
         conn.update(worksheet="Global", data=df_salvar)
-        st.cache_data.clear() # Limpa o cache imediatamente após a gravação
+        st.cache_data.clear()
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
 
@@ -150,7 +149,6 @@ def bloco_consolidado_geral():
 
     st.markdown("---")
     st.markdown("#### Histórico de Lançamentos Realizados")
-    st.caption("💡 Para excluir: Selecione a linha e utilize a tecla Delete ou os controles do editor.")
     
     if not df_global.empty:
         df_estilizado = df_global.style.set_properties(**{'text-align': 'center'})
@@ -202,22 +200,22 @@ def bloco_painel_poroes(turno_atual):
         val_p1 = val_p2 = val_p3 = val_p4 = val_p5 = 0
         texto_botao = "Gravar Lançamento"
 
-    # INPUTS DIRETOS EM LINHA
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    with col1: data_lan = st.date_input("Data", format="DD/MM/YYYY", key=f"dt_{turno_atual}")
-    with col2: v1 = st.number_input("Porão 1 (t)", min_value=0, step=50, value=val_p1, key=f"p1_{turno_atual}")
-    with col3: v2 = st.number_input("Porão 2 (t)", min_value=0, step=50, value=val_p2, key=f"p2_{turno_atual}")
-    with col4: v3 = st.number_input("Porão 3 (t)", min_value=0, step=50, value=val_p3, key=f"p3_{turno_atual}")
-    with col5: v4 = st.number_input("Porão 4 (t)", min_value=0, step=50, value=val_p4, key=f"p4_{turno_atual}")
-    with col6: v5 = st.number_input("Porão 5 (t)", min_value=0, step=50, value=val_p5, key=f"p5_{turno_atual}")
-    
-    c_btn1, c_btn2 = st.columns([5, 1])
-    with c_btn1:
-        if st.button(texto_botao, use_container_width=True, key=f"btn_save_{turno_atual}"):
+    # FORMULÁRIO SEGURO PARA PROCESSAR OS CAMPOS E O BOTÃO ENTAO DE FORMA SINCRONIZADA
+    with st.form(key=f"form_lancamento_{turno_atual}"):
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        with col1: data_lan = st.date_input("Data", format="DD/MM/YYYY", key=f"dt_{turno_atual}")
+        with col2: v1 = st.number_input("Porão 1 (t)", min_value=0, step=50, value=val_p1, key=f"p1_{turno_atual}")
+        with col3: v2 = st.number_input("Porão 2 (t)", min_value=0, step=50, value=val_p2, key=f"p2_{turno_atual}")
+        with col4: v3 = st.number_input("Porão 3 (t)", min_value=0, step=50, value=val_p3, key=f"p3_{turno_atual}")
+        with col5: v4 = st.number_input("Porão 4 (t)", min_value=0, step=50, value=val_p4, key=f"p4_{turno_atual}")
+        with col6: v5 = st.number_input("Porão 5 (t)", min_value=0, step=50, value=val_p5, key=f"p5_{turno_atual}")
+        
+        submetido = st.form_submit_button(texto_botao, use_container_width=True)
+        
+        if submetido:
             hora_correta = obter_hora_atual_brasil()
             saldo_calculado = v1 + v2 + v3 + v4 + v5
             
-            # Puxa atualizado direto do banco limpo de cache
             df_atualizar_salvamento = carregar_dados_do_sheets()
             
             if st.session_state.edit_mode:
@@ -242,14 +240,14 @@ def bloco_painel_poroes(turno_atual):
             
             sincronizar_com_sheets(df_atualizar_salvamento)
             st.rerun()
-            
-    with c_btn2:
-        if st.session_state.edit_mode and st.button("Cancelar", use_container_width=True, key=f"btn_cancel_{turno_atual}"):
+
+    if st.session_state.edit_mode:
+        if st.button("Cancelar Edição", use_container_width=True, key=f"btn_cancel_{turno_atual}"):
             st.session_state.edit_mode, st.session_state.edit_index = False, None
             st.rerun()
 
     st.markdown("---")
-    # TABELA DO HISTÓRICO GARANTIDA ABAIXO DO LANÇAMENTO
+    
     if not df_turno.empty:
         st.markdown("#### Histórico do Turno")
         df_mostrar = df_turno.drop(columns=['index'])
@@ -266,7 +264,7 @@ def bloco_painel_poroes(turno_atual):
                 st.session_state.edit_index = lines_opcoes.index(linha_selecionada)
                 st.rerun()
     else:
-        st.info("Nenhum registro lançado para este turno na planilha.")
+        st.info("Nenhum registro lançado para este turno.")
 
 def bloco_cadastro():
     st.markdown("<h2>Cadastrar Novo Operador</h2>", unsafe_allow_html=True)
