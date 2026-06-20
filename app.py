@@ -87,21 +87,13 @@ def aplicar_estilo_visual():
             color: #38bdf8 !important; 
             font-weight: bold !important;
         }
-        
-        /* Centralizar Título específico da tela Global */
-        .titulo-centralizado {
-            text-align: center;
-            color: #38bdf8 !important;
-            font-weight: bold !important;
-            margin-bottom: 25px;
-        }
         </style>
         """,
         unsafe_allow_html=True
     )
 
 # =====================================================================
-# BLOCO: BANCO DE DADOS EM MEMÓRIA (Atualizado com novas colunas)
+# BLOCO: BANCO DE DADOS EM MEMÓRIA
 # =====================================================================
 def inicializar_dados():
     if 'banco_usuarios' not in st.session_state:
@@ -188,8 +180,10 @@ def gerar_pdf_reportlab(p1, p2, p3, p4, saldo, df_combinado):
 # MÓDULO 3: VISÃO GLOBAL CONSOLIDADA (APENAS ADMINISTRADORES)
 # =====================================================================
 def bloco_consolidado_geral():
-    # Cabeçalho centralizado e sem o ícone do globo terrestre
-    st.markdown("<h2 class='titulo-centralizado'>Painel Gerencial Global (Turno 1 + Turno 2)</h2>", unsafe_allow_html=True)
+    # Cabeçalho centralizado via colunas nativas e sem o globo
+    col_tit_1, col_tit_2, col_tit_3 = st.columns([1, 4, 1])
+    with col_tit_2:
+        st.markdown("<h2 style='text-align: center; color: #38bdf8 !important;'>Painel Gerencial Global (Turno 1 + Turno 2)</h2>", unsafe_allow_html=True)
     
     df1 = st.session_state.tabela_turno_1.copy()
     df1["Turno"] = "1º TURNO"
@@ -239,43 +233,26 @@ def bloco_consolidado_geral():
     if not df_combinado.empty:
         df_combinado[["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]] = df_combinado[["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo"]].apply(pd.to_numeric).fillna(0)
         
-        # Tabela Detalhada atualizada com colunas extras para Usuário e Hora de Gravação
-        html_table = """
-        <table>
-            <thead>
-                <tr>
-                    <th>Turno</th>
-                    <th>Dia</th>
-                    <th>Porão 1</th>
-                    <th>Porão 2</th>
-                    <th>Porão 3</th>
-                    <th>Porão 4</th>
-                    <th>Saldo</th>
-                    <th>Usuário</th>
-                    <th>Hora do Registro</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-        for _, r in df_combinado.iterrows():
-            usr = r.get('Usuario', '-') if pd.notna(r.get('Usuario')) else '-'
-            hra = r.get('Hora', '-') if pd.notna(r.get('Hora')) else '-'
+        # Estrutura em colunas nativas do Streamlit para evitar erros com HTML cru
+        cols_headers = st.columns([1.5, 1.5, 1.2, 1.2, 1.2, 1.2, 1.2, 1.8, 1.5])
+        headers = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Saldo", "Usuário", "Hora do Registro"]
+        for i, h in enumerate(headers): 
+            cols_headers[i].markdown(f"<th>{h}</th>", unsafe_allow_html=True)
             
-            html_table += f"""
-                <tr>
-                    <td>{r['Turno']}</td>
-                    <td>{r['Dia']}</td>
-                    <td>{int(r['Porão 1'])} t</td>
-                    <td>{int(r['Porão 2'])} t</td>
-                    <td>{int(r['Porão 3'])} t</td>
-                    <td>{int(r['Porão 4'])} t</td>
-                    <td>{int(r['Saldo'])} t</td>
-                    <td>{usr}</td>
-                    <td>{hra}</td>
-                </tr>
-            """
-        html_table += "</tbody></table>"
-        st.markdown(html_table, unsafe_allow_html=True)
+        for idx, row in df_combinado.iterrows():
+            cols_row = st.columns([1.5, 1.5, 1.2, 1.2, 1.2, 1.2, 1.2, 1.8, 1.5])
+            usr = row.get('Usuario', '-') if pd.notna(row.get('Usuario')) else '-'
+            hra = row.get('Hora', '-') if pd.notna(row.get('Hora')) else '-'
+            
+            cols_row[0].markdown(f"<td>{row['Turno']}</td>", unsafe_allow_html=True)
+            cols_row[1].markdown(f"<td>{row['Dia']}</td>", unsafe_allow_html=True)
+            cols_row[2].markdown(f"<td>{int(row['Porão 1'])} t</td>", unsafe_allow_html=True)
+            cols_row[3].markdown(f"<td>{int(row['Porão 2'])} t</td>", unsafe_allow_html=True)
+            cols_row[4].markdown(f"<td>{int(row['Porão 3'])} t</td>", unsafe_allow_html=True)
+            cols_row[5].markdown(f"<td>{int(row['Porão 4'])} t</td>", unsafe_allow_html=True)
+            cols_row[6].markdown(f"<td>{int(row['Saldo'])} t</td>", unsafe_allow_html=True)
+            cols_row[7].markdown(f"<td>{usr}</td>", unsafe_allow_html=True)
+            cols_row[8].markdown(f"<td>{hra}</td>", unsafe_allow_html=True)
         
         st.markdown("<br>", unsafe_allow_html=True)
         pdf_data = gerar_pdf_reportlab(p1_total, p2_total, p3_total, p4_total, saldo_geral, df_combinado)
