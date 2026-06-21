@@ -2,6 +2,11 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime, timedelta
+import io
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
 # -----------------------------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA E ESTILIZAÇÃO COMPLETA (PRETO E VERDE CLARO)
@@ -47,7 +52,7 @@ st.markdown(
 URL_WEB_APP = "https://script.google.com/macros/s/AKfycbxy_cHemynJwqmOwtIoZBJg8GwXKvPYv-qlYHLvCkblW6xcOWPq8yMINvQITkgRnolN/exec"
 
 # -----------------------------------------------------------------------------
-# BANCO DE USUÁRIOS ATUALIZADO
+# BANCO DE USUÁRIOS
 # -----------------------------------------------------------------------------
 LISTA_USUARIOS = {
     "Denilson": {"senha": "9607", "cargo": "visualizador_global", "turno": "Todos"},
@@ -120,6 +125,74 @@ def atualizar_planilha_nuvem(df_novo):
     except Exception:
         pass
     return False
+
+def gerar_pdf_real(t1, t2, t3, t4, t5, total, ref, falta, porc, usuario):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=20, leading=24, textColor=colors.HexColor("#006633"), alignment=1)
+    subtitle_style = ParagraphStyle('Sub', parent=styles['Normal'], fontSize=10, leading=14, alignment=1, textColor=colors.gray)
+    heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=14, leading=18, spaceBefore=15, spaceAfter=10)
+    text_style = ParagraphStyle('Text', parent=styles['Normal'], fontSize=11, leading=16)
+    
+    # Cabeçalho
+    story.append(Paragraph("<b>ZION TECNOLOGIA PORTUÁRIA</b>", title_style))
+    story.append(Paragraph("RELATÓRIO GERENCIAL CONSOLIDADO DE OPERAÇÕES", subtitle_style))
+    story.append(Spacer(1, 20))
+    
+    data_emissao = (datetime.utcnow() - timedelta(hours=3)).strftime("%d/%m/%Y %H:%M:%S")
+    story.append(Paragraph(f"<b>Data de Emissão:</b> {data_emissao} | <b>Emitido por:</b> {usuario}", text_style))
+    story.append(Spacer(1, 15))
+    
+    # Tabela de Porões
+    story.append(Paragraph("<b>Resumo de Produção por Porão</b>", heading_style))
+    dados_poroes = [
+        ["Local de Carga", "Volume Operado (t)"],
+        ["Porão 1", f"{t1:,.0f}".replace(",", ".")],
+        ["Porão 2", f"{t2:,.0f}".replace(",", ".")],
+        ["Porão 3", f"{t3:,.0f}".replace(",", ".")],
+        ["Porão 4", f"{t4:,.0f}".replace(",", ".")],
+        ["Porão 5", f"{t5:,.0f}".replace(",", ".")]
+    ]
+    t_poroes = Table(dados_poroes, colWidths=[200, 150])
+    t_poroes.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (1,0), colors.HexColor("#006633")),
+        ('TEXTCOLOR', (0,0), (1,0), colors.white),
+        ('FONTNAME', (0,0), (1,0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('GRID', (0,0), (-1,-1), 1, colors.lightgrey),
+        ('ALIGN', (1,0), (1,-1), 'RIGHT')
+    ]))
+    story.append(t_poroes)
+    story.append(Spacer(1, 20))
+    
+    # Indicadores Contratuais
+    story.append(Paragraph("<b>Indicadores Contratuais</b>", heading_style))
+    dados_contrato = [
+        ["Métrica", "Valor"],
+        ["Total Já Lançado", f"{total:,.0f} t".replace(",", ".")],
+        ["Referência Contratual", f"{ref:,.0f} t".replace(",", ".")],
+        ["Percentual Alcançado", f"{porc:.2f}%".replace(".", ",")],
+        ["Quanto Falta Atingir", f"{falta:,.0f} t".replace(",", ".")]
+    ]
+    t_contrato = Table(dados_contrato, colWidths=[200, 150])
+    t_contrato.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (1,0), colors.HexColor("#333333")),
+        ('TEXTCOLOR', (0,0), (1,0), colors.white),
+        ('FONTNAME', (0,0), (1,0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('GRID', (0,0), (-1,-1), 1, colors.lightgrey),
+        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+        ('FONTNAME', (0,3), (1,3), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (0,3), (1,3), colors.HexColor("#006633"))
+    ]))
+    story.append(t_contrato)
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
 
 if "dados_operacao" not in st.session_state:
     st.session_state.dados_operacao = carregar_dados_nuvem()
@@ -278,6 +351,9 @@ else:
             total_p1 = total_p2 = total_p3 = total_p4 = total_p5 = total_lancado = 0.0
             
         quanto_falta = max(0.0, REFERENCIA_CONTRATUAL - total_lancado)
+        
+        # Cálculo da porcentagem alcançada
+        porcentagem_alcancada = (total_lancado / REFERENCIA_CONTRATUAL) * 100 if REFERENCIA_CONTRATUAL > 0 else 0.0
 
         col_m1, col_m2, col_m3, col_m4, col_m5, col_mt = st.columns(6)
         col_m1.metric("Total Porão 1", f"{total_p1:,.0f} t".replace(",", "."))
@@ -287,41 +363,30 @@ else:
         col_m5.metric("Total Porão 5", f"{total_p5:,.0f} t".replace(",", "."))
         col_mt.metric("TOTAL JÁ LANÇADO", f"{total_lancado:,.0f} t".replace(",", "."))
         
-        col_ref, col_falta = st.columns(2)
+        col_ref, col_porc, col_falta = st.columns(3)
         with col_ref:
             st.info(f"**REFERÊNCIA CONTRATUAL:**\n### {REFERENCIA_CONTRATUAL:,.0f} t".replace(",", "."))
+        with col_porc:
+            st.info(f"**% ALCANÇADO DA META:**\n### {porcentagem_alcancada:.2f}%".replace(".", ","))
         with col_falta:
             st.warning(f"**QUANTO FALTA ATINGIR:**\n### {quanto_falta:,.0f} t".replace(",", "."))
             
         st.markdown("---")
         
-        # Botão personalizado para gerar e exibir o relatório estruturado
-        if st.button("📄 Gerar PDF do Relatório", use_container_width=True):
-            data_atual = (datetime.utcnow() - timedelta(hours=3)).strftime("%d/%m/%Y %H:%M:%S")
-            relatorio_texto = f"""
-            ==================================================
-            🚀 ZION TECNOLOGIA PORTUÁRIA - RELATÓRIO GLOBAL
-            ==================================================
-            Data de Emissão: {data_atual}
-            Emitido por: {st.session_state.usuario_atual}
-            
-            RESUMO DE PRODUÇÃO POR PORÃO:
-            --------------------------------------------------
-            - Porão 1: {total_p1:,.0f} t
-            - Porão 2: {total_p2:,.0f} t
-            - Porão 3: {total_p3:,.0f} t
-            - Porão 4: {total_p4:,.0f} t
-            - Porão 5: {total_p5:,.0f} t
-            
-            INDICADORES CONTRATUAIS:
-            --------------------------------------------------
-            * TOTAL JÁ LANÇADO: {total_lancado:,.0f} t
-            * REFERÊNCIA CONTRATUAL: {REFERENCIA_CONTRATUAL:,.0f} t
-            * QUANTO FALTA ATINGIR: {quanto_falta:,.0f} t
-            ==================================================
-            """.replace(",", ".")
-            
-            st.text_area("Relatório Gerado (Pronto para copiar/imprimir)", value=relatorio_texto, height=320)
+        # Geração física do PDF real para download direto
+        pdf_data = gerar_pdf_real(
+            total_p1, total_p2, total_p3, total_p4, total_p5, 
+            total_lancado, REFERENCIA_CONTRATUAL, quanto_falta, porcentagem_alcancada,
+            st.session_state.usuario_atual
+        )
+        
+        st.download_button(
+            label="📥 Baixar PDF Oficial do Relatório",
+            data=pdf_data,
+            file_name=f"Relatorio_Global_Zion_{datetime.now().strftime('%d_%m_%Y')}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
             
         st.markdown("---")
         st.subheader("Histórico de Lançamentos Realizados")
