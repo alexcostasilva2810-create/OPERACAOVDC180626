@@ -47,8 +47,20 @@ st.markdown(
 URL_WEB_APP = "https://script.google.com/macros/s/AKfycbxy_cHemynJwqmOwtIoZBJg8GwXKvPYv-qlYHLvCkblW6xcOWPq8yMINvQITkgRnolN/exec"
 
 # -----------------------------------------------------------------------------
-# CONTROLE DE ESTADO DA SESSÃO E BANCO DE USUÁRIOS ATUALIZADO
+# BANCO DE USUÁRIOS COMPLETO E ATUALIZADO
 # -----------------------------------------------------------------------------
+LISTA_USUARIOS = {
+    "Denilson": {"senha": "9607", "cargo": "admin", "turno": "Todos"},
+    "Alex": {"senha": "1234", "cargo": "admin", "turno": "Todos"},
+    "Rubens Ferreira": {"senha": "8036", "cargo": "operador", "turno": "2º TURNO"},
+    "Tallison Menezes": {"senha": "4991", "cargo": "operador", "turno": "1º TURNO"},
+    "Caio Rosario": {"senha": "6244", "cargo": "operador", "turno": "1º TURNO"},
+    "Cleyvson Cardoso": {"senha": "4194", "cargo": "operador", "turno": "2º TURNO"},
+}
+
+# Força a atualização dos utilizadores para limpar qualquer cache antigo da sessão
+st.session_state.usuarios_db = LISTA_USUARIOS
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -61,22 +73,24 @@ if "cargo_atual" not in st.session_state:
 if "menu_atual" not in st.session_state:
     st.session_state.menu_atual = "Lançamentos do Turno"
 
-if "usuarios_db" not in st.session_state:
-    st.session_state.usuarios_db = {
-        "Denilson": {"senha": "9607", "cargo": "admin", "turno": "Todos"},
-        "Alex": {"senha": "1234", "cargo": "admin", "turno": "Todos"},
-        "Rubens Ferreira": {"senha": "8036", "cargo": "operador", "turno": "2º TURNO"},
-        "Tallison Menezes": {"senha": "4991", "cargo": "operador", "turno": "1º TURNO"},
-        "Caio Rosario": {"senha": "6244", "cargo": "operador", "turno": "1º TURNO"},
-        "Cleyvson Cardoso": {"senha": "4194", "cargo": "operador", "turno": "2º TURNO"},
-    }
-
 REFERENCIA_CONTRATUAL = 50000.0
 COLUNAS_PADRAO = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
 
 # -----------------------------------------------------------------------------
 # FUNÇÕES DE COMUNICAÇÃO DIRETAS VIA API DO GOOGLE
 # -----------------------------------------------------------------------------
+def tratar_formato_hora(hora_bruta):
+    """Trata formatos estranhos de data/hora vindos da planilha (Ex: '1899-12-31T02:51:17.000Z')"""
+    try:
+        hora_str = str(hora_bruta).strip()
+        if "T" in hora_str:
+            # Extrai apenas a parte do tempo HH:MM:SS de uma string ISO
+            tempo_limpo = hora_str.split("T")[1].split(".")[0]
+            return tempo_limpo
+        return hora_str
+    except Exception:
+        return hora_bruta
+
 def carregar_dados_nuvem():
     try:
         response = requests.get(URL_WEB_APP, timeout=10)
@@ -86,10 +100,15 @@ def carregar_dados_nuvem():
                 return pd.DataFrame(columns=COLUNAS_PADRAO)
             df = pd.DataFrame(dados)
             
-            colunas_numéricas = ["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo"]
-            for col in colunas_numéricas:
+            # Corrige colunas numéricas
+            colunas_numericas = ["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo"]
+            for col in colunas_numericas:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+            
+            # Limpa e formata a coluna de Horas para não mostrar datas incorretas
+            if "Hora do Registro" in df.columns:
+                df["Hora do Registro"] = df["Hora do Registro"].apply(tratar_formato_hora)
             
             return df[[c for c in COLUNAS_PADRAO if c in df.columns]]
     except Exception:
@@ -132,7 +151,7 @@ if not st.session_state.logged_in:
         
         if st.button("Entrar no Sistema", use_container_width=True):
             db = st.session_state.usuarios_db
-            if user_input in db and db[user_input]["senha"] == pass_input:
+            if user_input in db and str(db[user_input]["senha"]) == str(pass_input):
                 st.session_state.logged_in = True
                 st.session_state.usuario_atual = user_input
                 st.session_state.cargo_atual = db[user_input]["cargo"]
