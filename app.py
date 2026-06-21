@@ -169,9 +169,11 @@ else:
     st.sidebar.title("Zion Operações")
     st.sidebar.write(f"🟢 **Usuário:** {st.session_state.usuario_atual}")
     
-    if st.sidebar.button("Atualizar Dados Nuvem", use_container_width=True):
-        st.session_state.dados_operacao = carregar_dados_nuvem()
-        st.rerun()
+    # AJUSTE EXCLUSIVO: Botão de atualizar dados visível apenas para o Admin (Alex)
+    if st.session_state.cargo_atual == "admin":
+        if st.sidebar.button("🔄 Atualizar Dados Nuvem", use_container_width=True):
+            st.session_state.dados_operacao = carregar_dados_nuvem()
+            st.rerun()
     
     if st.session_state.cargo_atual != "visualizador_global":
         if st.sidebar.button("Lançamentos do Turno", use_container_width=True):
@@ -191,7 +193,6 @@ else:
 
     st.sidebar.markdown("---")
     
-    # LINHA CORRIGIDA AQUI (Sem cortes ou erros de sintaxe)
     user_info = st.session_state.usuarios_db[st.session_state.usuario_atual]
 
     # --- TELA: LANÇAMENTOS DO TURNO ---
@@ -251,7 +252,7 @@ else:
             if atualizar_planilha_nuvem(st.session_state.dados_operacao):
                 st.success("Lançamento efetuado e enviado com sucesso! 🚀")
             else:
-                st.error("Erro ao sincronizar com o Google Sheets. Verifique as configurações de Implantação do Script.")
+                st.error("Erro ao sincronizar com o Google Sheets. Verifique o Apps Script.")
             st.rerun()
 
         st.subheader("Histórico do Turno")
@@ -310,7 +311,7 @@ else:
             win.document.write("<h2>ZION TECNOLOGIA PORTUÁRIA</h2>");
             win.document.write("<p><b>Relatório Gerencial Emitido em:</b> {data_atual}</p>");
             win.document.write("<p><b>Emitido por:</b> {st.session_state.usuario_atual}</p>");
-            win.document.write("<h3>Resumo de Produção por Porão</h3>");
+            win.document.write("<h3>Resumo de Production por Porão</h3>");
             win.document.write("<table><tr><th>Local de Carga</th><th>Volume Operado (t)</th></tr>");
             win.document.write("<tr><td>Porão 1</td><td>{total_p1:,.0f} t</td></tr>".replace(",", "."));
             win.document.write("<tr><td>Porão 2</td><td>{total_p2:,.0f} t</td></tr>".replace(",", "."));
