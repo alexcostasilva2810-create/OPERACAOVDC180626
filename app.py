@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # -----------------------------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA E ESTILIZAÇÃO COMPLETA (PRETO E VERDE CLARO)
@@ -176,7 +176,9 @@ else:
         
         with st.expander("▼ Novo Lançamento (5 Porões)", expanded=True):
             col_data, col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(6)
-            fuso_local = datetime.now()
+            
+            # Força o fuso horário correto (UTC-3) para o ambiente de nuvem
+            fuso_local = datetime.utcnow() - timedelta(hours=3)
             
             with col_data:
                 data_lanc = st.date_input("Data", value=fuso_local, format="DD/MM/YYYY")
