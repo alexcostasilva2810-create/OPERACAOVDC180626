@@ -47,7 +47,7 @@ st.markdown(
 URL_WEB_APP = "https://script.google.com/macros/s/AKfycbxy_cHemynJwqmOwtIoZBJg8GwXKvPYv-qlYHLvCkblW6xcOWPq8yMINvQITkgRnolN/exec"
 
 # -----------------------------------------------------------------------------
-# CONTROLE DE ESTADO DA SESSÃO E BANCO DE USUÁRIOS
+# CONTROLE DE ESTADO DA SESSÃO E BANCO DE USUÁRIOS ATUALIZADO
 # -----------------------------------------------------------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -155,8 +155,6 @@ else:
     if st.session_state.cargo_atual == "admin":
         if st.sidebar.button("Global (Consolidado)", use_container_width=True):
             st.session_state.menu_atual = "Global (Consolidado)"
-        if st.sidebar.button("Cadastrar Operador", use_container_width=True):
-            st.session_state.menu_atual = "Cadastrar Operador"
         
     if st.sidebar.button("Sair", use_container_width=True):
         st.session_state.logged_in = False
@@ -178,25 +176,30 @@ else:
         with st.expander("▼ Novo Lançamento (5 Porões)", expanded=True):
             col_data, col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(6)
             
-            # Força o fuso horário correto (UTC-3) para o ambiente de nuvem
             fuso_local = datetime.utcnow() - timedelta(hours=3)
             
             with col_data:
                 data_lanc = st.date_input("Data", value=fuso_local, format="DD/MM/YYYY")
             with col_p1:
-                p1 = st.number_input("Porão 1 (t)", min_value=0.0, step=50.0, value=0.0)
+                p1_input = st.number_input("Porão 1 (t)", min_value=0.0, step=50.0, value=None)
             with col_p2:
-                p2 = st.number_input("Porão 2 (t)", min_value=0.0, step=50.0, value=0.0)
+                p2_input = st.number_input("Porão 2 (t)", min_value=0.0, step=50.0, value=None)
             with col_p3:
-                p3 = st.number_input("Porão 3 (t)", min_value=0.0, step=50.0, value=0.0)
+                p3_input = st.number_input("Porão 3 (t)", min_value=0.0, step=50.0, value=None)
             with col_p4:
-                p4 = st.number_input("Porão 4 (t)", min_value=0.0, step=50.0, value=0.0)
+                p4_input = st.number_input("Porão 4 (t)", min_value=0.0, step=50.0, value=None)
             with col_p5:
-                p5 = st.number_input("Porão 5 (t)", min_value=0.0, step=50.0, value=0.0)
+                p5_input = st.number_input("Porão 5 (t)", min_value=0.0, step=50.0, value=None)
                 
             btn_gravar = st.button("Gravar Lançamento", type="primary", use_container_width=True)
             
         if btn_gravar:
+            p1 = p1_input if p1_input is not None else 0.0
+            p2 = p2_input if p2_input is not None else 0.0
+            p3 = p3_input if p3_input is not None else 0.0
+            p4 = p4_input if p4_input is not None else 0.0
+            p5 = p5_input if p5_input is not None else 0.0
+            
             saldo_lancamento = p1 + p2 + p3 + p4 + p5
             
             novo_registro = {
@@ -267,21 +270,3 @@ else:
             st.dataframe(df_atual, use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum dado lançado nos turnos até o momento.")
-
-    elif st.session_state.menu_atual == "Cadastrar Operador" and st.session_state.cargo_atual == "admin":
-        st.header("Cadastrar Novo Operador")
-        novo_user = st.text_input("Definir Usuário", key="cad_user")
-        nova_senha = st.text_input("Definir Senha", type="password", key="cad_pass")
-        cargo_selecionado = st.selectbox("Cargo", ["operador", "admin"], key="cad_cargo")
-        
-        if cargo_selecionado == "admin":
-            turno_fixo = "Todos"
-        else:
-            turno_fixo = st.selectbox("Turno Fixo", ["1º TURNO", "2º TURNO"], key="cad_turno")
-        
-        if st.button("Salvar Operador", use_container_width=True):
-            if novo_user and nova_senha:
-                st.session_state.usuarios_db[novo_user] = {"senha": nova_senha, "cargo": cargo_selecionado, "turno": turno_fixo}
-                st.success(f"Usuário '{novo_user}' cadastrado com sucesso!")
-            else:
-                st.error("Preencha todos os campos.")
