@@ -42,9 +42,9 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
-# URL DO SEU GOOGLE APPS SCRIPT (RETIRADA EXATAMENTE DO SEU PRINT)
+# URL ATUALIZADA DO SEU GOOGLE APPS SCRIPT
 # -----------------------------------------------------------------------------
-URL_WEB_APP = "https://script.google.com/macros/s/AKfycbwYyY7W0_wQoKof0vW8eE5R0v4f_hR91eQW6h9fR-QWv4f_hR91eQW6h9fR-QWv4f_hR/exec"
+URL_WEB_APP = "https://script.google.com/macros/s/AKfycbxy_cHemynJwqmOwtIoZBJg8GwXKvPYv-qlYHLvCkblW6xcOWPq8yMINvQITkgRnolN/exec"
 
 # -----------------------------------------------------------------------------
 # CONTROLE DE ESTADO DA SESSÃO E BANCO DE USUÁRIOS
