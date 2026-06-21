@@ -2,11 +2,6 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime, timedelta
-import io
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
 
 # -----------------------------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA E ESTILIZAÇÃO COMPLETA (PRETO E VERDE CLARO)
@@ -125,71 +120,6 @@ def atualizar_planilha_nuvem(df_novo):
     except Exception:
         pass
     return False
-
-def gerar_pdf_real(t1, t2, t3, t4, t5, total, ref, falta, porc, usuario):
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
-    story = []
-    
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=20, leading=24, textColor=colors.HexColor("#006633"), alignment=1)
-    subtitle_style = ParagraphStyle('Sub', parent=styles['Normal'], fontSize=10, leading=14, alignment=1, textColor=colors.gray)
-    heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=14, leading=18, spaceBefore=15, spaceAfter=10)
-    text_style = ParagraphStyle('Text', parent=styles['Normal'], fontSize=11, leading=16)
-    
-    story.append(Paragraph("<b>ZION TECNOLOGIA PORTUÁRIA</b>", title_style))
-    story.append(Paragraph("RELATÓRIO GERENCIAL CONSOLIDADO DE OPERAÇÕES", subtitle_style))
-    story.append(Spacer(1, 20))
-    
-    data_emissao = (datetime.utcnow() - timedelta(hours=3)).strftime("%d/%m/%Y %H:%M:%S")
-    story.append(Paragraph(f"<b>Data de Emissão:</b> {data_emissao} | <b>Emitido por:</b> {usuario}", text_style))
-    story.append(Spacer(1, 15))
-    
-    story.append(Paragraph("<b>Resumo de Production por Porão</b>", heading_style))
-    dados_poroes = [
-        ["Local de Carga", "Volume Operado (t)"],
-        ["Porão 1", f"{t1:,.0f}".replace(",", ".")],
-        ["Porão 2", f"{t2:,.0f}".replace(",", ".")],
-        ["Porão 3", f"{t3:,.0f}".replace(",", ".")],
-        ["Porão 4", f"{t4:,.0f}".replace(",", ".")],
-        ["Porão 5", f"{t5:,.0f}".replace(",", ".")]
-    ]
-    t_poroes = Table(dados_poroes, colWidths=[200, 150])
-    t_poroes.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (1,0), colors.HexColor("#006633")),
-        ('TEXTCOLOR', (0,0), (1,0), colors.white),
-        ('FONTNAME', (0,0), (1,0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('GRID', (0,0), (-1,-1), 1, colors.lightgrey),
-        ('ALIGN', (1,0), (1,-1), 'RIGHT')
-    ]))
-    story.append(t_poroes)
-    story.append(Spacer(1, 20))
-    
-    story.append(Paragraph("<b>Indicadores Contratuais</b>", heading_style))
-    dados_contrato = [
-        ["Métrica", "Valor"],
-        ["Total Já Lançado", f"{total:,.0f} t".replace(",", ".")],
-        ["Referência Contratual", f"{ref:,.0f} t".replace(",", ".")],
-        ["Percentual Alcançado", f"{porc:.2f}%".replace(".", ",")],
-        ["Quanto Falta Atingir", f"{falta:,.0f} t".replace(",", ".")]
-    ]
-    t_contrato = Table(dados_contrato, colWidths=[200, 150])
-    t_contrato.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (1,0), colors.HexColor("#333333")),
-        ('TEXTCOLOR', (0,0), (1,0), colors.white),
-        ('FONTNAME', (0,0), (1,0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('GRID', (0,0), (-1,-1), 1, colors.lightgrey),
-        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
-        ('FONTNAME', (0,3), (1,3), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (0,3), (1,3), colors.HexColor("#006633"))
-    ]))
-    story.append(t_contrato)
-    
-    doc.build(story)
-    buffer.seek(0)
-    return buffer
 
 if "dados_operacao" not in st.session_state:
     st.session_state.dados_operacao = carregar_dados_nuvem()
@@ -368,19 +298,43 @@ else:
             
         st.markdown("---")
         
-        pdf_data = gerar_pdf_real(
-            total_p1, total_p2, total_p3, total_p4, total_p5, 
-            total_lancado, REFERENCIA_CONTRATUAL, quanto_falta, porcentagem_alcancada,
-            st.session_state.usuario_atual
-        )
-        
-        st.download_button(
-            label="📥 Baixar PDF Oficial do Relatório",
-            data=pdf_data,
-            file_name=f"Relatorio_Global_Zion_{datetime.now().strftime('%d_%m_%Y')}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+        # Botão Inteligente: Abre o relatório limpo para Salvar como PDF direto do navegador
+        data_atual = (datetime.utcnow() - timedelta(hours=3)).strftime("%d/%m/%Y %H:%M:%S")
+        html_relatorio = f"""
+        <script>
+        function imprimirRelatorio() {{
+            var win = window.open("", "_blank");
+            win.document.write("<html><head><title>Relatorio Global Zion</title>");
+            win.document.write("<style>body{{font-family:Arial,sans-serif;padding:30px;}} table{{width:100%;border-collapse:collapse;margin-top:20px;}} th,td{{border:1px solid #ddd;padding:10px;text-align:left;}} th{{background-color:#006633;color:white;}}</style>");
+            win.document.write("</head><body>");
+            win.document.write("<h2>ZION TECNOLOGIA PORTUÁRIA</h2>");
+            win.document.write("<p><b>Relatório Gerencial Emitido em:</b> {data_atual}</p>");
+            win.document.write("<p><b>Emitido por:</b> {st.session_state.usuario_atual}</p>");
+            win.document.write("<h3>Resumo de Produção por Porão</h3>");
+            win.document.write("<table><tr><th>Local de Carga</th><th>Volume Operado (t)</th></tr>");
+            win.document.write("<tr><td>Porão 1</td><td>{total_p1:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Porão 2</td><td>{total_p2:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Porão 3</td><td>{total_p3:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Porão 4</td><td>{total_p4:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Porão 5</td><td>{total_p5:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("</table>");
+            win.document.write("<h3>Indicadores Contratuais</h3>");
+            win.document.write("<table>");
+            win.document.write("<tr><td><b>TOTAL JÁ LANÇADO</b></td><td><b>{total_lancado:,.0f} t</b></td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Referência Contratual</td><td>{REFERENCIA_CONTRATUAL:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Percentual Alcançado</td><td>{porcentagem_alcancada:.2f}%</td></tr>".replace(".", ","));
+            win.document.write("<tr><td>Quanto Falta Atingir</td><td>{quanto_falta:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("</table>");
+            win.document.write("</body></html>");
+            win.document.close();
+            win.print();
+        }}
+        </script>
+        <button onclick="imprimirRelatorio()" style="width:100%; background-color:#000; color:#00FF66; border:2px solid #00FF66; padding:10px; font-weight:bold; border-radius:5px; cursor:pointer;">
+            📄 Imprimir / Salvar como PDF do Relatório
+        </button>
+        """
+        st.components.v1.html(html_relatorio, height=60)
             
         st.markdown("---")
         st.subheader("Histórico de Lançamentos Realizados")
