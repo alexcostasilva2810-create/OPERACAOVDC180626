@@ -42,15 +42,16 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
-# URL ATUALIZADA DO SEU GOOGLE APPS SCRIPT
+# URL DO SEU GOOGLE APPS SCRIPT
 # -----------------------------------------------------------------------------
 URL_WEB_APP = "https://script.google.com/macros/s/AKfycbxy_cHemynJwqmOwtIoZBJg8GwXKvPYv-qlYHLvCkblW6xcOWPq8yMINvQITkgRnolN/exec"
 
 # -----------------------------------------------------------------------------
-# BANCO DE USUÁRIOS COMPLETO E ATUALIZADO
+# BANCO DE USUÁRIOS ATUALIZADO
 # -----------------------------------------------------------------------------
 LISTA_USUARIOS = {
-    "Denilson": {"senha": "9607", "cargo": "admin", "turno": "Todos"},
+    "Denilson": {"senha": "9607", "cargo": "visualizador_global", "turno": "Todos"},
+    "Fabio": {"senha": "7777", "cargo": "visualizador_global", "turno": "Todos"},
     "Alex": {"senha": "1234", "cargo": "admin", "turno": "Todos"},
     "Rubens Ferreira": {"senha": "8036", "cargo": "operador", "turno": "2º TURNO"},
     "Tallison Menezes": {"senha": "4991", "cargo": "operador", "turno": "1º TURNO"},
@@ -58,7 +59,6 @@ LISTA_USUARIOS = {
     "Cleyvson Cardoso": {"senha": "4194", "cargo": "operador", "turno": "2º TURNO"},
 }
 
-# Força a atualização dos utilizadores para limpar qualquer cache antigo da sessão
 st.session_state.usuarios_db = LISTA_USUARIOS
 
 if "logged_in" not in st.session_state:
@@ -80,11 +80,9 @@ COLUNAS_PADRAO = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4"
 # FUNÇÕES DE COMUNICAÇÃO DIRETAS VIA API DO GOOGLE
 # -----------------------------------------------------------------------------
 def tratar_formato_hora(hora_bruta):
-    """Trata formatos estranhos de data/hora vindos da planilha (Ex: '1899-12-31T02:51:17.000Z')"""
     try:
         hora_str = str(hora_bruta).strip()
         if "T" in hora_str:
-            # Extrai apenas a parte do tempo HH:MM:SS de uma string ISO
             tempo_limpo = hora_str.split("T")[1].split(".")[0]
             return tempo_limpo
         return hora_str
@@ -100,13 +98,11 @@ def carregar_dados_nuvem():
                 return pd.DataFrame(columns=COLUNAS_PADRAO)
             df = pd.DataFrame(dados)
             
-            # Corrige colunas numéricas
             colunas_numericas = ["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo"]
             for col in colunas_numericas:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
             
-            # Limpa e formata a coluna de Horas para não mostrar datas incorretas
             if "Hora do Registro" in df.columns:
                 df["Hora do Registro"] = df["Hora do Registro"].apply(tratar_formato_hora)
             
@@ -155,6 +151,11 @@ if not st.session_state.logged_in:
                 st.session_state.logged_in = True
                 st.session_state.usuario_atual = user_input
                 st.session_state.cargo_atual = db[user_input]["cargo"]
+                
+                if st.session_state.cargo_atual == "visualizador_global":
+                    st.session_state.menu_atual = "Global (Consolidado)"
+                else:
+                    st.session_state.menu_atual = "Lançamentos do Turno"
                 st.rerun()
             else:
                 st.error("Usuário ou senha incorretos.")
@@ -166,14 +167,21 @@ else:
     df_atual = st.session_state.dados_operacao
 
     st.sidebar.title("Zion Operações")
-    st.sidebar.write(f"🟢 **Usuário:** {st.session_state.usuario_atual} ({st.session_state.cargo_atual.upper()})")
+    st.sidebar.write(f"🟢 **Usuário:** {st.session_state.usuario_atual}")
     
-    if st.sidebar.button("Lançamentos do Turno", use_container_width=True):
-        st.session_state.menu_atual = "Lançamentos do Turno"
-        
-    if st.session_state.cargo_atual == "admin":
-        if st.sidebar.button("Global (Consolidado)", use_container_width=True):
-            st.session_state.menu_atual = "Global (Consolidado)"
+    if st.sidebar.button("Atualizar Dados Nuvem", use_container_width=True):
+        st.session_state.dados_operacao = carregar_dados_nuvem()
+        st.rerun()
+    
+    if st.session_state.cargo_atual != "visualizador_global":
+        if st.sidebar.button("Lançamentos do Turno", use_container_width=True):
+            st.session_state.menu_atual = "Lançamentos do Turno"
+            
+        if st.session_state.cargo_atual == "admin":
+            if st.sidebar.button("Global (Consolidado)", use_container_width=True):
+                st.session_state.menu_atual = "Global (Consolidado)"
+    else:
+        st.sidebar.write("📌 *Acesso restrito ao Painel Global*")
         
     if st.sidebar.button("Sair", use_container_width=True):
         st.session_state.logged_in = False
@@ -184,12 +192,14 @@ else:
     st.sidebar.markdown("---")
     
     user_info = st.session_state.usuarios_db[st.session_state.usuario_atual]
-    if user_info["turno"] != "Todos":
-        turno_trabalho = user_info["turno"]
-    else:
-        turno_trabalho = st.sidebar.selectbox("Visualizar Turno", ["1º TURNO", "2º TURNO"])
 
-    if st.session_state.menu_atual == "Lançamentos do Turno":
+    # --- TELA: LANÇAMENTOS DO TURNO ---
+    if st.session_state.menu_atual == "Lançamentos do Turno" and st.session_state.cargo_atual != "visualizador_global":
+        if user_info["turno"] != "Todos":
+            turno_trabalho = user_info["turno"]
+        else:
+            turno_trabalho = st.sidebar.selectbox("Visualizar Turno", ["1º TURNO", "2º TURNO"])
+            
         st.header(f"Lançamentos Atuais - {turno_trabalho}")
         
         with st.expander("▼ Novo Lançamento (5 Porões)", expanded=True):
@@ -253,7 +263,8 @@ else:
         else:
             st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
 
-    elif st.session_state.menu_atual == "Global (Consolidado)" and st.session_state.cargo_atual == "admin":
+    # --- TELA: GLOBAL CONSOLIDADO ---
+    elif st.session_state.menu_atual == "Global (Consolidado)":
         st.header("Painel Gerencial Global (5 Porões)")
         
         if not df_atual.empty:
@@ -281,6 +292,36 @@ else:
             st.info(f"**REFERÊNCIA CONTRATUAL:**\n### {REFERENCIA_CONTRATUAL:,.0f} t".replace(",", "."))
         with col_falta:
             st.warning(f"**QUANTO FALTA ATINGIR:**\n### {quanto_falta:,.0f} t".replace(",", "."))
+            
+        st.markdown("---")
+        
+        # Botão personalizado para gerar e exibir o relatório estruturado
+        if st.button("📄 Gerar PDF do Relatório", use_container_width=True):
+            data_atual = (datetime.utcnow() - timedelta(hours=3)).strftime("%d/%m/%Y %H:%M:%S")
+            relatorio_texto = f"""
+            ==================================================
+            🚀 ZION TECNOLOGIA PORTUÁRIA - RELATÓRIO GLOBAL
+            ==================================================
+            Data de Emissão: {data_atual}
+            Emitido por: {st.session_state.usuario_atual}
+            
+            RESUMO DE PRODUÇÃO POR PORÃO:
+            --------------------------------------------------
+            - Porão 1: {total_p1:,.0f} t
+            - Porão 2: {total_p2:,.0f} t
+            - Porão 3: {total_p3:,.0f} t
+            - Porão 4: {total_p4:,.0f} t
+            - Porão 5: {total_p5:,.0f} t
+            
+            INDICADORES CONTRATUAIS:
+            --------------------------------------------------
+            * TOTAL JÁ LANÇADO: {total_lancado:,.0f} t
+            * REFERÊNCIA CONTRATUAL: {REFERENCIA_CONTRATUAL:,.0f} t
+            * QUANTO FALTA ATINGIR: {quanto_falta:,.0f} t
+            ==================================================
+            """.replace(",", ".")
+            
+            st.text_area("Relatório Gerado (Pronto para copiar/imprimir)", value=relatorio_texto, height=320)
             
         st.markdown("---")
         st.subheader("Histórico de Lançamentos Realizados")
