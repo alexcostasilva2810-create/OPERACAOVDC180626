@@ -137,7 +137,6 @@ def gerar_pdf_real(t1, t2, t3, t4, t5, total, ref, falta, porc, usuario):
     heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=14, leading=18, spaceBefore=15, spaceAfter=10)
     text_style = ParagraphStyle('Text', parent=styles['Normal'], fontSize=11, leading=16)
     
-    # Cabeçalho
     story.append(Paragraph("<b>ZION TECNOLOGIA PORTUÁRIA</b>", title_style))
     story.append(Paragraph("RELATÓRIO GERENCIAL CONSOLIDADO DE OPERAÇÕES", subtitle_style))
     story.append(Spacer(1, 20))
@@ -146,8 +145,7 @@ def gerar_pdf_real(t1, t2, t3, t4, t5, total, ref, falta, porc, usuario):
     story.append(Paragraph(f"<b>Data de Emissão:</b> {data_emissao} | <b>Emitido por:</b> {usuario}", text_style))
     story.append(Spacer(1, 15))
     
-    # Tabela de Porões
-    story.append(Paragraph("<b>Resumo de Produção por Porão</b>", heading_style))
+    story.append(Paragraph("<b>Resumo de Production por Porão</b>", heading_style))
     dados_poroes = [
         ["Local de Carga", "Volume Operado (t)"],
         ["Porão 1", f"{t1:,.0f}".replace(",", ".")],
@@ -168,7 +166,6 @@ def gerar_pdf_real(t1, t2, t3, t4, t5, total, ref, falta, porc, usuario):
     story.append(t_poroes)
     story.append(Spacer(1, 20))
     
-    # Indicadores Contratuais
     story.append(Paragraph("<b>Indicadores Contratuais</b>", heading_style))
     dados_contrato = [
         ["Métrica", "Valor"],
@@ -351,8 +348,6 @@ else:
             total_p1 = total_p2 = total_p3 = total_p4 = total_p5 = total_lancado = 0.0
             
         quanto_falta = max(0.0, REFERENCIA_CONTRATUAL - total_lancado)
-        
-        # Cálculo da porcentagem alcançada
         porcentagem_alcancada = (total_lancado / REFERENCIA_CONTRATUAL) * 100 if REFERENCIA_CONTRATUAL > 0 else 0.0
 
         col_m1, col_m2, col_m3, col_m4, col_m5, col_mt = st.columns(6)
@@ -373,7 +368,6 @@ else:
             
         st.markdown("---")
         
-        # Geração física do PDF real para download direto
         pdf_data = gerar_pdf_real(
             total_p1, total_p2, total_p3, total_p4, total_p5, 
             total_lancado, REFERENCIA_CONTRATUAL, quanto_falta, porcentagem_alcancada,
