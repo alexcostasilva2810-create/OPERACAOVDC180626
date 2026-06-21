@@ -63,11 +63,12 @@ if "menu_atual" not in st.session_state:
 
 if "usuarios_db" not in st.session_state:
     st.session_state.usuarios_db = {
-        "admin": {"senha": "10000", "cargo": "admin", "turno": "Todos"},
+        "Denilson": {"senha": "9607", "cargo": "admin", "turno": "Todos"},
         "Alex": {"senha": "1234", "cargo": "admin", "turno": "Todos"},
-        "operador1": {"senha": "111", "cargo": "operador", "turno": "1º TURNO"},
-        "operador2": {"senha": "222", "cargo": "operador", "turno": "2º TURNO"},
-        "chico": {"senha": "3322", "cargo": "operador", "turno": "1º TURNO"},
+        "Rubens Ferreira": {"senha": "8036", "cargo": "operador", "turno": "2º TURNO"},
+        "Tallison Menezes": {"senha": "4991", "cargo": "operador", "turno": "1º TURNO"},
+        "Caio Rosario": {"senha": "6244", "cargo": "operador", "turno": "1º TURNO"},
+        "Cleyvson Cardoso": {"senha": "4194", "cargo": "operador", "turno": "2º TURNO"},
     }
 
 REFERENCIA_CONTRATUAL = 50000.0
