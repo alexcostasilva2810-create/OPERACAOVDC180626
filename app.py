@@ -52,7 +52,7 @@ URL_WEB_APP = "https://script.google.com/macros/s/AKfycbxy_cHemynJwqmOwtIoZBJg8G
 LISTA_USUARIOS = {
     "Denilson": {"senha": "9607", "cargo": "visualizador_global", "turno": "Todos"},
     "Fabio": {"senha": "7777", "cargo": "visualizador_global", "turno": "Todos"},
-    "Alex": {"senha": "1234", "cargo": "admin", "turno": "Todos"},
+    "Alex": {"senha": "246371", "cargo": "admin", "turno": "Todos"},
     "Rubens Ferreira": {"senha": "8036", "cargo": "operador", "turno": "2º TURNO"},
     "Tallison Menezes": {"senha": "4991", "cargo": "operador", "turno": "1º TURNO"},
     "Caio Rosario": {"senha": "6244", "cargo": "operador", "turno": "1º TURNO"},
