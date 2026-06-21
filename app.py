@@ -42,7 +42,7 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
-# URL DO SEU GOOGLE APPS SCRIPT ATUALIZADA
+# URL DO SEU GOOGLE APPS SCRIPT
 # -----------------------------------------------------------------------------
 URL_WEB_APP = "https://script.google.com/macros/s/AKfycbxy_cHemynJwqmOwtIoZBJg8GwXKvPYv-qlYHLvCkblW6xcOWPq8yMINvQITkgRnolN/exec"
 
@@ -115,7 +115,6 @@ def atualizar_planilha_nuvem(df_novo):
     try:
         dados_json = df_novo.to_dict(orient="records")
         response = requests.post(URL_WEB_APP, json=dados_json, timeout=15)
-        # Ajuste para aceitar qualquer retorno bem-sucedido (200) do script do Google
         if response.status_code == 200:
             return True
     except Exception:
@@ -192,4 +191,155 @@ else:
 
     st.sidebar.markdown("---")
     
-    user_info = st.
+    # LINHA CORRIGIDA AQUI (Sem cortes ou erros de sintaxe)
+    user_info = st.session_state.usuarios_db[st.session_state.usuario_atual]
+
+    # --- TELA: LANÇAMENTOS DO TURNO ---
+    if st.session_state.menu_atual == "Lançamentos do Turno" and st.session_state.cargo_atual != "visualizador_global":
+        if user_info["turno"] != "Todos":
+            turno_trabalho = user_info["turno"]
+        else:
+            turno_trabalho = st.sidebar.selectbox("Visualizar Turno", ["1º TURNO", "2º TURNO"])
+            
+        st.header(f"Lançamentos Atuais - {turno_trabalho}")
+        
+        with st.expander("▼ Novo Lançamento (5 Porões)", expanded=True):
+            col_data, col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(6)
+            
+            fuso_local = datetime.utcnow() - timedelta(hours=3)
+            
+            with col_data:
+                data_lanc = st.date_input("Data", value=fuso_local, format="DD/MM/YYYY")
+            with col_p1:
+                p1_input = st.number_input("Porão 1 (t)", min_value=0.0, step=50.0, value=None)
+            with col_p2:
+                p2_input = st.number_input("Porão 2 (t)", min_value=0.0, step=50.0, value=None)
+            with col_p3:
+                p3_input = st.number_input("Porão 3 (t)", min_value=0.0, step=50.0, value=None)
+            with col_p4:
+                p4_input = st.number_input("Porão 4 (t)", min_value=0.0, step=50.0, value=None)
+            with col_p5:
+                p5_input = st.number_input("Porão 5 (t)", min_value=0.0, step=50.0, value=None)
+                
+            btn_gravar = st.button("Gravar Lançamento", type="primary", use_container_width=True)
+            
+        if btn_gravar:
+            p1 = p1_input if p1_input is not None else 0.0
+            p2 = p2_input if p2_input is not None else 0.0
+            p3 = p3_input if p3_input is not None else 0.0
+            p4 = p4_input if p4_input is not None else 0.0
+            p5 = p5_input if p5_input is not None else 0.0
+            
+            saldo_lancamento = p1 + p2 + p3 + p4 + p5
+            
+            novo_registro = {
+                "Turno": turno_trabalho,
+                "Dia": data_lanc.strftime("%d/%m/%Y"),
+                "Porão 1": p1,
+                "Porão 2": p2,
+                "Porão 3": p3,
+                "Porão 4": p4,
+                "Porão 5": p5,
+                "Saldo": saldo_lancamento,
+                "Usuário": st.session_state.usuario_atual,
+                "Hora do Registro": fuso_local.strftime("%H:%M:%S")
+            }
+            
+            novo_df_linha = pd.DataFrame([novo_registro])
+            st.session_state.dados_operacao = pd.concat([st.session_state.dados_operacao, novo_df_linha], ignore_index=True)
+            
+            if atualizar_planilha_nuvem(st.session_state.dados_operacao):
+                st.success("Lançamento efetuado e enviado com sucesso! 🚀")
+            else:
+                st.error("Erro ao sincronizar com o Google Sheets. Verifique as configurações de Implantação do Script.")
+            st.rerun()
+
+        st.subheader("Histórico do Turno")
+        if not df_atual.empty and "Turno" in df_atual.columns:
+            df_turno = df_atual[df_atual["Turno"] == turno_trabalho]
+            if not df_turno.empty:
+                st.dataframe(df_turno, use_container_width=True, hide_index=True)
+            else:
+                st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
+        else:
+            st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
+
+    # --- TELA: GLOBAL CONSOLIDADO ---
+    elif st.session_state.menu_atual == "Global (Consolidado)":
+        st.header("Painel Gerencial Global (5 Porões)")
+        
+        if not df_atual.empty:
+            total_p1 = df_atual["Porão 1"].sum() if "Porão 1" in df_atual.columns else 0.0
+            total_p2 = df_atual["Porão 2"].sum() if "Porão 2" in df_atual.columns else 0.0
+            total_p3 = df_atual["Porão 3"].sum() if "Porão 3" in df_atual.columns else 0.0
+            total_p4 = df_atual["Porão 4"].sum() if "Porão 4" in df_atual.columns else 0.0
+            total_p5 = df_atual["Porão 5"].sum() if "Porão 5" in df_atual.columns else 0.0
+            total_lancado = df_atual["Saldo"].sum() if "Saldo" in df_atual.columns else 0.0
+        else:
+            total_p1 = total_p2 = total_p3 = total_p4 = total_p5 = total_lancado = 0.0
+            
+        quanto_falta = max(0.0, REFERENCIA_CONTRATUAL - total_lancado)
+        porcentagem_alcancada = (total_lancado / REFERENCIA_CONTRATUAL) * 100 if REFERENCIA_CONTRATUAL > 0 else 0.0
+
+        col_m1, col_m2, col_m3, col_m4, col_m5, col_mt = st.columns(6)
+        col_m1.metric("Total Porão 1", f"{total_p1:,.0f} t".replace(",", "."))
+        col_m2.metric("Total Porão 2", f"{total_p2:,.0f} t".replace(",", "."))
+        col_m3.metric("Total Porão 3", f"{total_p3:,.0f} t".replace(",", "."))
+        col_m4.metric("Total Porão 4", f"{total_p4:,.0f} t".replace(",", "."))
+        col_m5.metric("Total Porão 5", f"{total_p5:,.0f} t".replace(",", "."))
+        col_mt.metric("TOTAL JÁ LANÇADO", f"{total_lancado:,.0f} t".replace(",", "."))
+        
+        col_ref, col_porc, col_falta = st.columns(3)
+        with col_ref:
+            st.info(f"**REFERÊNCIA CONTRATUAL:**\n### {REFERENCIA_CONTRATUAL:,.0f} t".replace(",", "."))
+        with col_porc:
+            st.info(f"**% ALCANÇADO DA META:**\n### {porcentagem_alcancada:.2f}%".replace(".", ","))
+        with col_falta:
+            st.warning(f"**QUANTO FALTA ATINGIR:**\n### {quanto_falta:,.0f} t".replace(",", "."))
+            
+        st.markdown("---")
+        
+        data_atual = (datetime.utcnow() - timedelta(hours=3)).strftime("%d/%m/%Y %H:%M:%S")
+        html_relatorio = f"""
+        <script>
+        function imprimirRelatorio() {{
+            var win = window.open("", "_blank");
+            win.document.write("<html><head><title>Relatorio Global Zion</title>");
+            win.document.write("<style>body{{font-family:Arial,sans-serif;padding:30px;}} table{{width:100%;border-collapse:collapse;margin-top:20px;}} th,td{{border:1px solid #ddd;padding:10px;text-align:left;}} th{{background-color:#006633;color:white;}}</style>");
+            win.document.write("</head><body>");
+            win.document.write("<h2>ZION TECNOLOGIA PORTUÁRIA</h2>");
+            win.document.write("<p><b>Relatório Gerencial Emitido em:</b> {data_atual}</p>");
+            win.document.write("<p><b>Emitido por:</b> {st.session_state.usuario_atual}</p>");
+            win.document.write("<h3>Resumo de Produção por Porão</h3>");
+            win.document.write("<table><tr><th>Local de Carga</th><th>Volume Operado (t)</th></tr>");
+            win.document.write("<tr><td>Porão 1</td><td>{total_p1:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Porão 2</td><td>{total_p2:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Porão 3</td><td>{total_p3:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Porão 4</td><td>{total_p4:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Porão 5</td><td>{total_p5:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("</table>");
+            win.document.write("<h3>Indicadores Contratuais</h3>");
+            win.document.write("<table>");
+            win.document.write("<tr><td><b>TOTAL JÁ LANÇADO</b></td><td><b>{total_lancado:,.0f} t</b></td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Referência Contratual</td><td>{REFERENCIA_CONTRATUAL:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("<tr><td>Percentual Alcançado</td><td>{porcentagem_alcancada:.2f}%</td></tr>".replace(".", ","));
+            win.document.write("<tr><td>Quanto Falta Atingir</td><td>{quanto_falta:,.0f} t</td></tr>".replace(",", "."));
+            win.document.write("</table>");
+            win.document.write("</body></html>");
+            win.document.close();
+            win.print();
+        }}
+        </script>
+        <button onclick="imprimirRelatorio()" style="width:100%; background-color:#000; color:#00FF66; border:2px solid #00FF66; padding:10px; font-weight:bold; border-radius:5px; cursor:pointer;">
+            📄 Imprimir / Salvar como PDF do Relatório
+        </button>
+        """
+        st.components.v1.html(html_relatorio, height=60)
+            
+        st.markdown("---")
+        st.subheader("Histórico de Lançamentos Realizados")
+        
+        if not df_atual.empty:
+            st.dataframe(df_atual, use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum dado lançado nos turnos até o momento.")
