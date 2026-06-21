@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
+import requests
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
 
 # -----------------------------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA E ESTILIZAÇÃO COMPLETA (PRETO E VERDE CLARO)
@@ -42,6 +42,11 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
+# URL DO SEU GOOGLE APPS SCRIPT (RETIRADA EXATAMENTE DO SEU PRINT)
+# -----------------------------------------------------------------------------
+URL_WEB_APP = "https://script.google.com/macros/s/AKfycbwYyY7W0_wQoKof0vW8eE5R0v4f_hR91eQW6h9fR-QWv4f_hR91eQW6h9fR-QWv4f_hR/exec"
+
+# -----------------------------------------------------------------------------
 # CONTROLE DE ESTADO DA SESSÃO E BANCO DE USUÁRIOS
 # -----------------------------------------------------------------------------
 if "logged_in" not in st.session_state:
@@ -69,48 +74,35 @@ REFERENCIA_CONTRATUAL = 50000.0
 COLUNAS_PADRAO = ["Turno", "Dia", "Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo", "Usuário", "Hora do Registro"]
 
 # -----------------------------------------------------------------------------
-# CONEXÃO OFICIAL COM O GOOGLE SHEETS VIA STREAMLIT SECRETS
+# FUNÇÕES DE COMUNICAÇÃO DIRETAS VIA API DO GOOGLE
 # -----------------------------------------------------------------------------
-try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception:
-    conn = None
-
 def carregar_dados_nuvem():
-    if conn:
-        try:
-            # Lê os dados usando as credenciais configuradas na tela
-            df = conn.read(ttl=0)
-            if df.empty or len(df.columns) < 2:
+    try:
+        response = requests.get(URL_WEB_APP, timeout=10)
+        if response.status_code == 200:
+            dados = response.json()
+            if not dados:
                 return pd.DataFrame(columns=COLUNAS_PADRAO)
-            
-            # Corrige cabeçalhos antigos se necessário
-            mapeamento = {col: col.replace("Porção", "Porão") for col in df.columns if "Porção" in col}
-            if mapeamento:
-                df = df.rename(columns=mapeamento)
-                
-            for col in COLUNAS_PADRAO:
-                if col not in df.columns:
-                    df[col] = 0.0 if "Porão" in col or col == "Saldo" else ""
+            df = pd.DataFrame(dados)
             
             colunas_numéricas = ["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo"]
             for col in colunas_numéricas:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
-                
-            return df[COLUNAS_PADRAO]
-        except Exception:
-            pass
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+            
+            return df[[c for c in COLUNAS_PADRAO if c in df.columns]]
+    except Exception:
+        pass
     return pd.DataFrame(columns=COLUNAS_PADRAO)
 
 def atualizar_planilha_nuvem(df_novo):
-    if conn:
-        try:
-            # Escreve de volta com autorização total da Service Account
-            conn.update(data=df_novo)
+    try:
+        dados_json = df_novo.to_dict(orient="records")
+        response = requests.post(URL_WEB_APP, json=dados_json, timeout=15)
+        if response.status_code == 200 and response.json().get("status") == "success":
             return True
-        except Exception as e:
-            st.error(f"Erro na sincronização: {e}")
-            return False
+    except Exception:
+        pass
     return False
 
 if "dados_operacao" not in st.session_state:
@@ -220,15 +212,17 @@ else:
             novo_df_linha = pd.DataFrame([novo_registro])
             st.session_state.dados_operacao = pd.concat([st.session_state.dados_operacao, novo_df_linha], ignore_index=True)
             
-            atualizar_planilha_nuvem(st.session_state.dados_operacao[COLUNAS_PADRAO])
-            st.success("Lançamento efetuado e sincronizado com sucesso! 🚀")
+            if atualizar_planilha_nuvem(st.session_state.dados_operacao):
+                st.success("Lançamento efetuado e enviado com sucesso! 🚀")
+            else:
+                st.error("Erro ao sincronizar com o Google Sheets. Verifique a implantação do Apps Script.")
             st.rerun()
 
         st.subheader("Histórico do Turno")
-        if not df_atual.empty:
+        if not df_atual.empty and "Turno" in df_atual.columns:
             df_turno = df_atual[df_atual["Turno"] == turno_trabalho]
             if not df_turno.empty:
-                st.dataframe(df_turno[COLUNAS_PADRAO], use_container_width=True, hide_index=True)
+                st.dataframe(df_turno, use_container_width=True, hide_index=True)
             else:
                 st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
         else:
@@ -238,12 +232,12 @@ else:
         st.header("Painel Gerencial Global (5 Porões)")
         
         if not df_atual.empty:
-            total_p1 = df_atual["Porão 1"].sum()
-            total_p2 = df_atual["Porão 2"].sum()
-            total_p3 = df_atual["Porão 3"].sum()
-            total_p4 = df_atual["Porão 4"].sum()
-            total_p5 = df_atual["Porão 5"].sum()
-            total_lancado = df_atual["Saldo"].sum()
+            total_p1 = df_atual["Porão 1"].sum() if "Porão 1" in df_atual.columns else 0.0
+            total_p2 = df_atual["Porão 2"].sum() if "Porão 2" in df_atual.columns else 0.0
+            total_p3 = df_atual["Porão 3"].sum() if "Porão 3" in df_atual.columns else 0.0
+            total_p4 = df_atual["Porão 4"].sum() if "Porão 4" in df_atual.columns else 0.0
+            total_p5 = df_atual["Porão 5"].sum() if "Porão 5" in df_atual.columns else 0.0
+            total_lancado = df_atual["Saldo"].sum() if "Saldo" in df_atual.columns else 0.0
         else:
             total_p1 = total_p2 = total_p3 = total_p4 = total_p5 = total_lancado = 0.0
             
@@ -267,7 +261,7 @@ else:
         st.subheader("Histórico de Lançamentos Realizados")
         
         if not df_atual.empty:
-            st.dataframe(df_atual[COLUNAS_PADRAO], use_container_width=True, hide_index=True)
+            st.dataframe(df_atual, use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum dado lançado nos turnos até o momento.")
 
