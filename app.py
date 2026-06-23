@@ -52,7 +52,7 @@ URL_WEB_APP = "https://script.google.com/macros/s/AKfycbxy_cHemynJwqmOwtIoZBJg8G
 LISTA_USUARIOS = {
     "Denilson": {"senha": "9607", "cargo": "visualizador_global", "turno": "Todos"},
     "Fabio": {"senha": "7777", "cargo": "visualizador_global", "turno": "Todos"},
-    "Alex": {"senha": "246371", "cargo": "admin", "turno": "Todos"},
+    "Alex": {"senha": "1234", "cargo": "admin", "turno": "Todos"},
     "Rubens Ferreira": {"senha": "8036", "cargo": "operador", "turno": "2º TURNO"},
     "Tallison Menezes": {"senha": "4991", "cargo": "operador", "turno": "1º TURNO"},
     "Caio Rosario": {"senha": "6244", "cargo": "operador", "turno": "1º TURNO"},
@@ -169,7 +169,6 @@ else:
     st.sidebar.title("Zion Operações")
     st.sidebar.write(f"🟢 **Usuário:** {st.session_state.usuario_atual}")
     
-    # AJUSTE EXCLUSIVO: Botão de atualizar dados visível apenas para o Admin (Alex)
     if st.session_state.cargo_atual == "admin":
         if st.sidebar.button("🔄 Atualizar Dados Nuvem", use_container_width=True):
             st.session_state.dados_operacao = carregar_dados_nuvem()
@@ -259,7 +258,39 @@ else:
         if not df_atual.empty and "Turno" in df_atual.columns:
             df_turno = df_atual[df_atual["Turno"] == turno_trabalho]
             if not df_turno.empty:
-                st.dataframe(df_turno, use_container_width=True, hide_index=True)
+                # FUNCIONALIDADE EXCLUSIVA DE EXCLUSÃO PARA O ADMIN (ALEX)
+                if st.session_state.cargo_atual == "admin":
+                    # Adiciona coluna de seleção interativa para o dataframe
+                    df_com_selecao = df_turno.copy()
+                    df_com_selecao.insert(0, "Selecionar para Excluir", False)
+                    df_editado = st.data_editor(df_com_selecao, use_container_width=True, hide_index=True)
+                    
+                    # Identifica se alguma linha foi selecionada para exclusão
+                    linhas_para_remover = df_editado[df_editado["Selecionar para Excluir"] == True]
+                    
+                    if not lines_para_remover.empty:
+                        if st.button("🗑️ Excluir Registro Selecionado", type="primary"):
+                            # Filtra removendo as linhas correspondentes do estado global
+                            for idx, row in linhas_para_remover.iterrows():
+                                condicao = (
+                                    (st.session_state.dados_operacao["Turno"] == row["Turno"]) &
+                                    (st.session_state.dados_operacao["Dia"] == row["Dia"]) &
+                                    (st.session_state.dados_operacao["Saldo"] == row["Saldo"]) &
+                                    (st.session_state.dados_operacao["Hora do Registro"] == row["Hora do Registro"])
+                                )
+                                # Remove a primeira ocorrência encontrada para evitar deletar múltiplos registros legítimos idênticos
+                                indices_validos = st.session_state.dados_operacao[condicao].index
+                                if not indices_validos.empty:
+                                    st.session_state.dados_operacao = st.session_state.dados_operacao.drop(indices_validos[0]).reset_index(drop=True)
+                            
+                            # Atualiza a nuvem com a nova tabela sem o registro duplicado
+                            if atualizar_planilha_nuvem(st.session_state.dados_operacao):
+                                st.success("Registro removido com sucesso!")
+                                st.rerun()
+                            else:
+                                st.error("Erro ao sincronizar a remoção com o Google Sheets.")
+                else:
+                    st.dataframe(df_turno, use_container_width=True, hide_index=True)
             else:
                 st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
         else:
@@ -311,7 +342,7 @@ else:
             win.document.write("<h2>ZION TECNOLOGIA PORTUÁRIA</h2>");
             win.document.write("<p><b>Relatório Gerencial Emitido em:</b> {data_atual}</p>");
             win.document.write("<p><b>Emitido por:</b> {st.session_state.usuario_atual}</p>");
-            win.document.write("<h3>Resumo de Production por Porão</h3>");
+            win.document.write("<h3>Resumo de Produção por Porão</h3>");
             win.document.write("<table><tr><th>Local de Carga</th><th>Volume Operado (t)</th></tr>");
             win.document.write("<tr><td>Porão 1</td><td>{total_p1:,.0f} t</td></tr>".replace(",", "."));
             win.document.write("<tr><td>Porão 2</td><td>{total_p2:,.0f} t</td></tr>".replace(",", "."));
@@ -341,6 +372,33 @@ else:
         st.subheader("Histórico de Lançamentos Realizados")
         
         if not df_atual.empty:
-            st.dataframe(df_atual, use_container_width=True, hide_index=True)
+            # ADIÇÃO DA REMOÇÃO NA TELA GERENCIAL TAMBÉM
+            if st.session_state.cargo_atual == "admin":
+                df_com_selecao_global = df_atual.copy()
+                df_com_selecao_global.insert(0, "Selecionar para Excluir", False)
+                df_editado_global = st.data_editor(df_com_selecao_global, use_container_width=True, hide_index=True)
+                
+                linhas_para_remover_global = df_editado_global[df_editado_global["Selecionar para Excluir"] == True]
+                
+                if not linhas_para_remover_global.empty:
+                    if st.button("🗑️ Excluir Registro Selecionado (Painel Global)", type="primary"):
+                        for idx, row in linhas_para_remover_global.iterrows():
+                            condicao = (
+                                (st.session_state.dados_operacao["Turno"] == row["Turno"]) &
+                                (st.session_state.dados_operacao["Dia"] == row["Dia"]) &
+                                (st.session_state.dados_operacao["Saldo"] == row["Saldo"]) &
+                                (st.session_state.dados_operacao["Hora do Registro"] == row["Hora do Registro"])
+                            )
+                            indices_validos = st.session_state.dados_operacao[condicao].index
+                            if not indices_validos.empty:
+                                st.session_state.dados_operacao = st.session_state.dados_operacao.drop(indices_validos[0]).reset_index(drop=True)
+                        
+                        if atualizar_planilha_nuvem(st.session_state.dados_operacao):
+                            st.success("Registro removido do histórico global com sucesso!")
+                            st.rerun()
+                        else:
+                            st.error("Erro ao sincronizar a remoção global com o Google Sheets.")
+            else:
+                st.dataframe(df_atual, use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum dado lançado nos turnos até o momento.")
