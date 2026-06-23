@@ -98,7 +98,6 @@ def carregar_dados_nuvem():
                 return pd.DataFrame(columns=COLUNAS_PADRAO)
             df = pd.DataFrame(dados)
             
-            # Força colunas numéricas
             colunas_numericas = ["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo"]
             for col in colunas_numericas:
                 if col in df.columns:
@@ -107,7 +106,6 @@ def carregar_dados_nuvem():
             if "Hora do Registro" in df.columns:
                 df["Hora do Registro"] = df["Hora do Registro"].apply(tratar_formato_hora)
             
-            # Preenche colunas ausentes para evitar quebra de contrato
             for c in COLUNAS_PADRAO:
                 if c not in df.columns:
                     df[c] = ""
@@ -119,7 +117,6 @@ def carregar_dados_nuvem():
 
 def atualizar_planilha_nuvem(df_novo):
     try:
-        # Garante que o DataFrame enviado tenha exatamente a estrutura correta da planilha
         df_envio = df_novo[COLUNAS_PADRAO].copy()
         dados_json = df_envio.to_dict(orient="records")
         response = requests.post(URL_WEB_APP, json=dados_json, timeout=15)
@@ -348,39 +345,38 @@ else:
         
         if not df_atual.empty:
             if st.session_state.cargo_atual == "admin":
-                st.markdown("💡 *Marque a caixinha na coluna **Excluir** do registro duplicado e depois clique no botão abaixo para deletar da nuvem automaticamente.*")
+                st.markdown("💡 *Marque a caixinha na coluna **Excluir** do registro que deseja remover e clique no botão abaixo.*")
                 
-                # Prepara dataframe interativo com a coluna booleana de seleção
+                # Prepara dataframe com a coluna booleana de seleção interativa
                 df_com_checkbox = df_atual.copy()
                 df_com_checkbox.insert(0, "Excluir", False)
                 
-                # Executa o editor dentro de um formulário controlado para evitar perda de foco ou erros de re-renderização
-                with st.form("form_exclusao_global"):
-                    df_editado_global = st.data_editor(
-                        df_com_checkbox,
-                        use_container_width=True,
-                        hide_index=False, # Mantém o index original visível para rastreabilidade
-                        disabled=[c for c in df_com_checkbox.columns if c != "Excluir"]
-                    )
-                    btn_deletar_nuvem = st.form_submit_submit_button("🗑️ Excluir Registros Marcados Permanentemente")
+                # Renderiza a tabela editável nativa do Streamlit
+                df_editado_global = st.data_editor(
+                    df_com_checkbox,
+                    use_container_width=True,
+                    hide_index=False,
+                    disabled=[c for c in df_com_checkbox.columns if c != "Excluir"]
+                )
                 
-                if btn_deletar_nuvem:
-                    # Encontra os índices originais das linhas onde a caixinha foi marcada como True
+                # Botão fora de formulário para evitar bugs de callback
+                if st.button("🗑️ Excluir Registros Marcados Permanentemente", type="primary"):
+                    # Captura os índices onde a caixinha foi marcada
                     indices_para_remover = df_editado_global[df_editado_global["Excluir"] == True].index.tolist()
                     
                     if indices_para_remover:
-                        # Remove as linhas selecionadas com base no índice exato mapeado
+                        # Dropa as linhas selecionadas com precisão cirúrgica
                         df_atualizado = st.session_state.dados_operacao.drop(index=indices_para_remover).reset_index(drop=True)
                         
-                        # Tenta atualizar diretamente no Google Sheets
+                        # Sincroniza com a nuvem (Google Sheets)
                         if atualizar_planilha_nuvem(df_atualizado):
                             st.session_state.dados_operacao = df_atualizado
-                            st.success(f"Sucesso! {len(indices_para_remover)} registro(s) excluído(s) da planilha Google e do sistema!")
+                            st.success(f"Sucesso! {len(indices_para_remover)} registro(s) deletado(s) da planilha e do sistema!")
                             st.rerun()
                         else:
-                            st.error("Erro crítico: Falha ao sincronizar a remoção com o Google Sheets. Verifique o Apps Script.")
+                            st.error("Erro ao atualizar a planilha Google. Tente novamente.")
                     else:
-                        st.warning("Nenhum registro foi marcado para exclusão.")
+                        st.warning("Nenhuma linha foi marcada para exclusão.")
             else:
                 st.dataframe(df_atual, use_container_width=True, hide_index=True)
         else:
