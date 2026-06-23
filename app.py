@@ -258,39 +258,33 @@ else:
         if not df_atual.empty and "Turno" in df_atual.columns:
             df_turno = df_atual[df_atual["Turno"] == turno_trabalho]
             if not df_turno.empty:
-                # FUNCIONALIDADE EXCLUSIVA DE EXCLUSÃO PARA O ADMIN (ALEX)
+                st.dataframe(df_turno, use_container_width=True, hide_index=True)
+                
+                # SEÇÃO DE EXCLUSÃO BLINDADA PARA O ADMIN ALEX
                 if st.session_state.cargo_atual == "admin":
-                    # Adiciona coluna de seleção interativa para o dataframe
-                    df_com_selecao = df_turno.copy()
-                    df_com_selecao.insert(0, "Selecionar para Excluir", False)
-                    df_editado = st.data_editor(df_com_selecao, use_container_width=True, hide_index=True)
+                    st.markdown("---")
+                    st.subheader("🛠️ Painel de Exclusão (Exclusivo Admin)")
                     
-                    # Identifica se alguma linha foi selecionada para exclusão
-                    linhas_para_remover = df_editado[df_editado["Selecionar para Excluir"] == True]
+                    # Cria opções claras para identificação da linha a ser apagada
+                    opcoes_excluir = []
+                    mapeamento_indices = {}
                     
-                    if not lines_para_remover.empty:
-                        if st.button("🗑️ Excluir Registro Selecionado", type="primary"):
-                            # Filtra removendo as linhas correspondentes do estado global
-                            for idx, row in linhas_para_remover.iterrows():
-                                condicao = (
-                                    (st.session_state.dados_operacao["Turno"] == row["Turno"]) &
-                                    (st.session_state.dados_operacao["Dia"] == row["Dia"]) &
-                                    (st.session_state.dados_operacao["Saldo"] == row["Saldo"]) &
-                                    (st.session_state.dados_operacao["Hora do Registro"] == row["Hora do Registro"])
-                                )
-                                # Remove a primeira ocorrência encontrada para evitar deletar múltiplos registros legítimos idênticos
-                                indices_validos = st.session_state.dados_operacao[condicao].index
-                                if not indices_validos.empty:
-                                    st.session_state.dados_operacao = st.session_state.dados_operacao.drop(indices_validos[0]).reset_index(drop=True)
-                            
-                            # Atualiza a nuvem com a nova tabela sem o registro duplicado
-                            if atualizar_planilha_nuvem(st.session_state.dados_operacao):
-                                st.success("Registro removido com sucesso!")
-                                st.rerun()
-                            else:
-                                st.error("Erro ao sincronizar a remoção com o Google Sheets.")
-                else:
-                    st.dataframe(df_turno, use_container_width=True, hide_index=True)
+                    for idx, row in df_turno.iterrows():
+                        texto_opcao = f"Data: {row['Dia']} | Hora: {row['Hora do Registro']} | Saldo: {row['Saldo']} t | Usuário: {row['Usuário']}"
+                        opcoes_excluir.append(texto_opcao)
+                        mapeamento_indices[texto_opcao] = idx
+                        
+                    linha_selecionada = st.selectbox("Selecione qual registro deseja excluir:", opcoes_excluir, key="select_excluir_turno")
+                    
+                    if st.button("🗑️ Confirmar Exclusão do Registro", type="primary", key="btn_excluir_turno"):
+                        idx_alvo = mapeamento_indices[linha_selecionada]
+                        st.session_state.dados_operacao = st.session_state.dados_operacao.drop(idx_alvo).reset_index(drop=True)
+                        
+                        if atualizar_planilha_nuvem(st.session_state.dados_operacao):
+                            st.success("Registro duplicado excluído com sucesso da nuvem!")
+                            st.rerun()
+                        else:
+                            st.error("Erro ao atualizar o Google Sheets.")
             else:
                 st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
         else:
@@ -372,33 +366,31 @@ else:
         st.subheader("Histórico de Lançamentos Realizados")
         
         if not df_atual.empty:
-            # ADIÇÃO DA REMOÇÃO NA TELA GERENCIAL TAMBÉM
+            st.dataframe(df_atual, use_container_width=True, hide_index=True)
+            
+            # SEÇÃO DE EXCLUSÃO GLOBAL BLINDADA PARA O ADMIN ALEX
             if st.session_state.cargo_atual == "admin":
-                df_com_selecao_global = df_atual.copy()
-                df_com_selecao_global.insert(0, "Selecionar para Excluir", False)
-                df_editado_global = st.data_editor(df_com_selecao_global, use_container_width=True, hide_index=True)
+                st.markdown("---")
+                st.subheader("🛠️ Painel de Exclusão Global (Exclusivo Admin)")
                 
-                linhas_para_remover_global = df_editado_global[df_editado_global["Selecionar para Excluir"] == True]
+                opcoes_excluir_global = []
+                mapeamento_indices_global = {}
                 
-                if not linhas_para_remover_global.empty:
-                    if st.button("🗑️ Excluir Registro Selecionado (Painel Global)", type="primary"):
-                        for idx, row in linhas_para_remover_global.iterrows():
-                            condicao = (
-                                (st.session_state.dados_operacao["Turno"] == row["Turno"]) &
-                                (st.session_state.dados_operacao["Dia"] == row["Dia"]) &
-                                (st.session_state.dados_operacao["Saldo"] == row["Saldo"]) &
-                                (st.session_state.dados_operacao["Hora do Registro"] == row["Hora do Registro"])
-                            )
-                            indices_validos = st.session_state.dados_operacao[condicao].index
-                            if not indices_validos.empty:
-                                st.session_state.dados_operacao = st.session_state.dados_operacao.drop(indices_validos[0]).reset_index(drop=True)
-                        
-                        if atualizar_planilha_nuvem(st.session_state.dados_operacao):
-                            st.success("Registro removido do histórico global com sucesso!")
-                            st.rerun()
-                        else:
-                            st.error("Erro ao sincronizar a remoção global com o Google Sheets.")
-            else:
-                st.dataframe(df_atual, use_container_width=True, hide_index=True)
+                for idx, row in df_atual.iterrows():
+                    texto_opcao = f"Turno: {row['Turno']} | Data: {row['Dia']} | Hora: {row['Hora do Registro']} | Saldo: {row['Saldo']} t"
+                    opcoes_excluir_global.append(texto_opcao)
+                    mapeamento_indices_global[texto_opcao] = idx
+                    
+                linha_selecionada_global = st.selectbox("Selecione qual registro deseja excluir do histórico geral:", opcoes_excluir_global, key="select_excluir_global")
+                
+                if st.button("🗑️ Confirmar Exclusão Global", type="primary", key="btn_excluir_global"):
+                    idx_alvo_g = mapeamento_indices_global[linha_selecionada_global]
+                    st.session_state.dados_operacao = st.session_state.dados_operacao.drop(idx_alvo_g).reset_index(drop=True)
+                    
+                    if atualizar_planilha_nuvem(st.session_state.dados_operacao):
+                        st.success("Registro excluído com sucesso da base geral!")
+                        st.rerun()
+                    else:
+                        st.error("Erro ao atualizar o Google Sheets.")
         else:
             st.info("Nenhum dado lançado nos turnos até o momento.")
