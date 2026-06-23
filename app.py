@@ -83,6 +83,7 @@ def tratar_formato_hora(hora_bruta):
     try:
         hora_str = str(hora_bruta).strip()
         if "T" in hora_str:
+            # Proteção contra strings corrompidas tipo 1899-12-31T02...
             tempo_limpo = hora_str.split("T")[1].split(".")[0]
             return tempo_limpo
         return hora_str
@@ -117,7 +118,14 @@ def carregar_dados_nuvem():
 
 def atualizar_planilha_nuvem(df_novo):
     try:
+        # Garante a higienização completa dos dados antes do envio
         df_envio = df_novo[COLUNAS_PADRAO].copy()
+        
+        # Converte tudo que é None ou strings quebradas para formatos válidos aceitos pela API do Apps Script
+        for c in df_envio.columns:
+            df_envio[c] = df_envio[c].fillna("")
+            df_envio[c] = df_envio[c].astype(str).str.replace("None", "").str.replace("NaN", "")
+            
         dados_json = df_envio.to_dict(orient="records")
         response = requests.post(URL_WEB_APP, json=dados_json, timeout=15)
         if response.status_code == 200:
@@ -314,7 +322,7 @@ else:
             win.document.write("<h2>ZION TECNOLOGIA PORTUÁRIA</h2>");
             win.document.write("<p><b>Relatório Gerencial Emitido em:</b> {data_atual}</p>");
             win.document.write("<p><b>Emitido por:</b> {st.session_state.usuario_atual}</p>");
-            win.document.write("<h3>Resumo de Production por Porão</h3>");
+            win.document.write("<h3>Resumo de Produção por Porão</h3>");
             win.document.write("<table><tr><th>Local de Carga</th><th>Volume Operado (t)</th></tr>");
             win.document.write("<tr><td>Porão 1</td><td>{total_p1:,.0f} t</td></tr>".replace(",", "."));
             win.document.write("<tr><td>Porão 2</td><td>{total_p2:,.0f} t</td></tr>".replace(",", "."));
@@ -347,36 +355,40 @@ else:
             if st.session_state.cargo_atual == "admin":
                 st.markdown("💡 *Marque a caixinha na coluna **Excluir** do registro que deseja remover e clique no botão abaixo.*")
                 
-                # Prepara dataframe com a coluna booleana de seleção interativa
+                # PREPARAÇÃO COMPLETA: Salva o ID real da linha antes de injetar a coluna interativa
                 df_com_checkbox = df_atual.copy()
                 df_com_checkbox.insert(0, "Excluir", False)
+                df_com_checkbox["_id_real_planilha"] = df_atual.index # Guarda a referência de linha real e física
                 
-                # Renderiza a tabela editável nativa do Streamlit
+                # Renderiza a tabela editável estável
                 df_editado_global = st.data_editor(
                     df_com_checkbox,
                     use_container_width=True,
-                    hide_index=False,
-                    disabled=[c for c in df_com_checkbox.columns if c != "Excluir"]
+                    hide_index=True,
+                    disabled=[c for c in df_com_checkbox.columns if c != "Excluir"],
+                    column_config={"_id_real_planilha": None} # Oculta o ID técnico do usuário final
                 )
                 
-                # Botão fora de formulário para evitar bugs de callback
                 if st.button("🗑️ Excluir Registros Marcados Permanentemente", type="primary"):
-                    # Captura os índices onde a caixinha foi marcada
-                    indices_para_remover = df_editado_global[df_editado_global["Excluir"] == True].index.tolist()
+                    # Captura as linhas onde a caixinha booleana foi marcada como True
+                    linhas_marcadas = df_editado_global[df_editado_global["Excluir"] == True]
                     
-                    if indices_para_remover:
-                        # Dropa as linhas selecionadas com precisão cirúrgica
-                        df_atualizado = st.session_state.dados_operacao.drop(index=indices_para_remover).reset_index(drop=True)
+                    if not lines_marcadas.empty:
+                        # Extrai os índices físicos mapeados do banco original
+                        indices_originais_remover = linhas_marcadas["_id_real_planilha"].tolist()
                         
-                        # Sincroniza com a nuvem (Google Sheets)
+                        # Remove cirurgicamente da base usando o mapeamento real indexado
+                        df_atualizado = st.session_state.dados_operacao.drop(index=indices_originais_remover).reset_index(drop=True)
+                        
+                        # Dispara a sincronização higienizada com o Google Sheets
                         if atualizar_planilha_nuvem(df_atualizado):
                             st.session_state.dados_operacao = df_atualizado
-                            st.success(f"Sucesso! {len(indices_para_remover)} registro(s) deletado(s) da planilha e do sistema!")
+                            st.success(f"Sucesso absoluto! {len(indices_originais_remover)} registro(s) deletado(s) da Planilha Google!")
                             st.rerun()
                         else:
-                            st.error("Erro ao atualizar a planilha Google. Tente novamente.")
+                            st.error("Erro de sincronização: A planilha Google rejeitou o formato dos dados. Verifique o Apps Script.")
                     else:
-                        st.warning("Nenhuma linha foi marcada para exclusão.")
+                        st.warning("Nenhuma linha foi marcada no quadradinho para exclusão.")
             else:
                 st.dataframe(df_atual, use_container_width=True, hide_index=True)
         else:
