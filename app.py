@@ -98,6 +98,7 @@ def carregar_dados_nuvem():
                 return pd.DataFrame(columns=COLUNAS_PADRAO)
             df = pd.DataFrame(dados)
             
+            # Força colunas numéricas
             colunas_numericas = ["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5", "Saldo"]
             for col in colunas_numericas:
                 if col in df.columns:
@@ -106,14 +107,21 @@ def carregar_dados_nuvem():
             if "Hora do Registro" in df.columns:
                 df["Hora do Registro"] = df["Hora do Registro"].apply(tratar_formato_hora)
             
-            return df[[c for c in COLUNAS_PADRAO if c in df.columns]]
+            # Preenche colunas ausentes para evitar quebra de contrato
+            for c in COLUNAS_PADRAO:
+                if c not in df.columns:
+                    df[c] = ""
+            
+            return df[COLUNAS_PADRAO]
     except Exception:
         pass
     return pd.DataFrame(columns=COLUNAS_PADRAO)
 
 def atualizar_planilha_nuvem(df_novo):
     try:
-        dados_json = df_novo.to_dict(orient="records")
+        # Garante que o DataFrame enviado tenha exatamente a estrutura correta da planilha
+        df_envio = df_novo[COLUNAS_PADRAO].copy()
+        dados_json = df_envio.to_dict(orient="records")
         response = requests.post(URL_WEB_APP, json=dados_json, timeout=15)
         if response.status_code == 200:
             return True
@@ -169,10 +177,9 @@ else:
     st.sidebar.title("Zion Operações")
     st.sidebar.write(f"🟢 **Usuário:** {st.session_state.usuario_atual}")
     
-    if st.session_state.cargo_atual == "admin":
-        if st.sidebar.button("🔄 Atualizar Dados Nuvem", use_container_width=True):
-            st.session_state.dados_operacao = carregar_dados_nuvem()
-            st.rerun()
+    if st.sidebar.button("🔄 Atualizar Dados Nuvem", use_container_width=True):
+        st.session_state.dados_operacao = carregar_dados_nuvem()
+        st.rerun()
     
     if st.session_state.cargo_atual != "visualizador_global":
         if st.sidebar.button("Lançamentos do Turno", use_container_width=True):
@@ -251,7 +258,7 @@ else:
             if atualizar_planilha_nuvem(st.session_state.dados_operacao):
                 st.success("Lançamento efetuado e enviado com sucesso! 🚀")
             else:
-                st.error("Erro ao sincronizar com o Google Sheets. Verifique o Apps Script.")
+                st.error("Erro ao sincronizar com o Google Sheets.")
             st.rerun()
 
         st.subheader("Histórico do Turno")
@@ -259,32 +266,6 @@ else:
             df_turno = df_atual[df_atual["Turno"] == turno_trabalho]
             if not df_turno.empty:
                 st.dataframe(df_turno, use_container_width=True, hide_index=True)
-                
-                # SEÇÃO DE EXCLUSÃO BLINDADA PARA O ADMIN ALEX
-                if st.session_state.cargo_atual == "admin":
-                    st.markdown("---")
-                    st.subheader("🛠️ Painel de Exclusão (Exclusivo Admin)")
-                    
-                    # Cria opções claras para identificação da linha a ser apagada
-                    opcoes_excluir = []
-                    mapeamento_indices = {}
-                    
-                    for idx, row in df_turno.iterrows():
-                        texto_opcao = f"Data: {row['Dia']} | Hora: {row['Hora do Registro']} | Saldo: {row['Saldo']} t | Usuário: {row['Usuário']}"
-                        opcoes_excluir.append(texto_opcao)
-                        mapeamento_indices[texto_opcao] = idx
-                        
-                    linha_selecionada = st.selectbox("Selecione qual registro deseja excluir:", opcoes_excluir, key="select_excluir_turno")
-                    
-                    if st.button("🗑️ Confirmar Exclusão do Registro", type="primary", key="btn_excluir_turno"):
-                        idx_alvo = mapeamento_indices[linha_selecionada]
-                        st.session_state.dados_operacao = st.session_state.dados_operacao.drop(idx_alvo).reset_index(drop=True)
-                        
-                        if atualizar_planilha_nuvem(st.session_state.dados_operacao):
-                            st.success("Registro duplicado excluído com sucesso da nuvem!")
-                            st.rerun()
-                        else:
-                            st.error("Erro ao atualizar o Google Sheets.")
             else:
                 st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
         else:
@@ -336,7 +317,7 @@ else:
             win.document.write("<h2>ZION TECNOLOGIA PORTUÁRIA</h2>");
             win.document.write("<p><b>Relatório Gerencial Emitido em:</b> {data_atual}</p>");
             win.document.write("<p><b>Emitido por:</b> {st.session_state.usuario_atual}</p>");
-            win.document.write("<h3>Resumo de Produção por Porão</h3>");
+            win.document.write("<h3>Resumo de Production por Porão</h3>");
             win.document.write("<table><tr><th>Local de Carga</th><th>Volume Operado (t)</th></tr>");
             win.document.write("<tr><td>Porão 1</td><td>{total_p1:,.0f} t</td></tr>".replace(",", "."));
             win.document.write("<tr><td>Porão 2</td><td>{total_p2:,.0f} t</td></tr>".replace(",", "."));
@@ -366,31 +347,41 @@ else:
         st.subheader("Histórico de Lançamentos Realizados")
         
         if not df_atual.empty:
-            st.dataframe(df_atual, use_container_width=True, hide_index=True)
-            
-            # SEÇÃO DE EXCLUSÃO GLOBAL BLINDADA PARA O ADMIN ALEX
             if st.session_state.cargo_atual == "admin":
-                st.markdown("---")
-                st.subheader("🛠️ Painel de Exclusão Global (Exclusivo Admin)")
+                st.markdown("💡 *Marque a caixinha na coluna **Excluir** do registro duplicado e depois clique no botão abaixo para deletar da nuvem automaticamente.*")
                 
-                opcoes_excluir_global = []
-                mapeamento_indices_global = {}
+                # Prepara dataframe interativo com a coluna booleana de seleção
+                df_com_checkbox = df_atual.copy()
+                df_com_checkbox.insert(0, "Excluir", False)
                 
-                for idx, row in df_atual.iterrows():
-                    texto_opcao = f"Turno: {row['Turno']} | Data: {row['Dia']} | Hora: {row['Hora do Registro']} | Saldo: {row['Saldo']} t"
-                    opcoes_excluir_global.append(texto_opcao)
-                    mapeamento_indices_global[texto_opcao] = idx
+                # Executa o editor dentro de um formulário controlado para evitar perda de foco ou erros de re-renderização
+                with st.form("form_exclusao_global"):
+                    df_editado_global = st.data_editor(
+                        df_com_checkbox,
+                        use_container_width=True,
+                        hide_index=False, # Mantém o index original visível para rastreabilidade
+                        disabled=[c for c in df_com_checkbox.columns if c != "Excluir"]
+                    )
+                    btn_deletar_nuvem = st.form_submit_submit_button("🗑️ Excluir Registros Marcados Permanentemente")
+                
+                if btn_deletar_nuvem:
+                    # Encontra os índices originais das linhas onde a caixinha foi marcada como True
+                    indices_para_remover = df_editado_global[df_editado_global["Excluir"] == True].index.tolist()
                     
-                linha_selecionada_global = st.selectbox("Selecione qual registro deseja excluir do histórico geral:", opcoes_excluir_global, key="select_excluir_global")
-                
-                if st.button("🗑️ Confirmar Exclusão Global", type="primary", key="btn_excluir_global"):
-                    idx_alvo_g = mapeamento_indices_global[linha_selecionada_global]
-                    st.session_state.dados_operacao = st.session_state.dados_operacao.drop(idx_alvo_g).reset_index(drop=True)
-                    
-                    if atualizar_planilha_nuvem(st.session_state.dados_operacao):
-                        st.success("Registro excluído com sucesso da base geral!")
-                        st.rerun()
+                    if indices_para_remover:
+                        # Remove as linhas selecionadas com base no índice exato mapeado
+                        df_atualizado = st.session_state.dados_operacao.drop(index=indices_para_remover).reset_index(drop=True)
+                        
+                        # Tenta atualizar diretamente no Google Sheets
+                        if atualizar_planilha_nuvem(df_atualizado):
+                            st.session_state.dados_operacao = df_atualizado
+                            st.success(f"Sucesso! {len(indices_para_remover)} registro(s) excluído(s) da planilha Google e do sistema!")
+                            st.rerun()
+                        else:
+                            st.error("Erro crítico: Falha ao sincronizar a remoção com o Google Sheets. Verifique o Apps Script.")
                     else:
-                        st.error("Erro ao atualizar o Google Sheets.")
+                        st.warning("Nenhum registro foi marcado para exclusão.")
+            else:
+                st.dataframe(df_atual, use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum dado lançado nos turnos até o momento.")
