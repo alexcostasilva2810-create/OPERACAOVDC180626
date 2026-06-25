@@ -119,7 +119,6 @@ def atualizar_planilha_nuvem(df_novo):
     try:
         df_envio = df_novo[COLUNAS_PADRAO].copy()
         
-        # Limpeza para evitar qualquer rejeição da API do Google Sheets
         for c in df_envio.columns:
             df_envio[c] = df_envio[c].fillna("")
             df_envio[c] = df_envio[c].astype(str).str.replace("None", "").str.replace("NaN", "")
@@ -175,7 +174,7 @@ if not st.session_state.logged_in:
 # INTERFACE LOGADA
 # -----------------------------------------------------------------------------
 else:
-    df_atual = st.session_state.dados_operacao
+    df_atual = st.session_state.dados_operacao.copy()
 
     st.sidebar.title("Zion Operações")
     st.sidebar.write(f"🟢 **Usuário:** {st.session_state.usuario_atual}")
@@ -274,17 +273,23 @@ else:
         else:
             st.info(f"Nenhum registro lançado ainda para o {turno_trabalho}.")
 
-    # --- TELA: GLOBAL CONSOLIDADO ---
+    # --- TELA: GLOBAL CONSOLIDADO (CORRIGIDA) ---
     elif st.session_state.menu_atual == "Global (Consolidado)":
         st.header("Painel Gerencial Global (5 Porões)")
         
+        # Correção matemática de segurança: garante conversão numérica estrita antes de realizar somas
         if not df_atual.empty:
-            total_p1 = df_atual["Porão 1"].sum() if "Porão 1" in df_atual.columns else 0.0
-            total_p2 = df_atual["Porão 2"].sum() if "Porão 2" in df_atual.columns else 0.0
-            total_p3 = df_atual["Porão 3"].sum() if "Porão 3" in df_atual.columns else 0.0
-            total_p4 = df_atual["Porão 4"].sum() if "Porão 4" in df_atual.columns else 0.0
-            total_p5 = df_atual["Porão 5"].sum() if "Porão 5" in df_atual.columns else 0.0
-            total_lancado = df_atual["Saldo"].sum() if "Saldo" in df_atual.columns else 0.0
+            for p in ["Porão 1", "Porão 2", "Porão 3", "Porão 4", "Porão 5"]:
+                df_atual[p] = pd.to_numeric(df_atual[p], errors='coerce').fillna(0.0)
+            
+            total_p1 = df_atual["Porão 1"].sum()
+            total_p2 = df_atual["Porão 2"].sum()
+            total_p3 = df_atual["Porão 3"].sum()
+            total_p4 = df_atual["Porão 4"].sum()
+            total_p5 = df_atual["Porão 5"].sum()
+            
+            # Recalcula o saldo de forma pura diretamente pela soma real dos porões homologados
+            total_lancado = total_p1 + total_p2 + total_p3 + total_p4 + total_p5
         else:
             total_p1 = total_p2 = total_p3 = total_p4 = total_p5 = total_lancado = 0.0
             
@@ -320,7 +325,7 @@ else:
             win.document.write("<h2>ZION TECNOLOGIA PORTUÁRIA</h2>");
             win.document.write("<p><b>Relatório Gerencial Emitido em:</b> {data_atual}</p>");
             win.document.write("<p><b>Emitido por:</b> {st.session_state.usuario_atual}</p>");
-            win.document.write("<h3>Resumo de Produção por Porão</h3>");
+            win.document.write("<h3>Resumo de Production por Porão</h3>");
             win.document.write("<table><tr><th>Local de Carga</th><th>Volume Operado (t)</th></tr>");
             win.document.write("<tr><td>Porão 1</td><td>{total_p1:,.0f} t</td></tr>".replace(",", "."));
             win.document.write("<tr><td>Porão 2</td><td>{total_p2:,.0f} t</td></tr>".replace(",", "."));
@@ -350,41 +355,38 @@ else:
         st.subheader("Histórico de Lançamentos Realizados")
         
         if not df_atual.empty:
+            # Reorganização Estrita de Colunas: Força o dataframe a alinhar os dados com os cabeçalhos corretos da planilha
+            df_atual = df_atual[COLUNAS_PADRAO]
+            
             if st.session_state.cargo_atual == "admin":
                 st.markdown("💡 *Marque a caixinha na coluna **Excluir** do registro que deseja remover e clique no botão abaixo.*")
                 
-                # Criando cópia segura e mapeando índice físico real
                 df_com_checkbox = df_atual.copy()
                 df_com_checkbox.insert(0, "Excluir", False)
                 df_com_checkbox["_id_real_planilha"] = df_atual.index
                 
-                # Tabela interativa estável
+                # data_editor configurado explicitamente para não bagunçar a ordem das colunas mapeadas
                 df_editado_global = st.data_editor(
                     df_com_checkbox,
                     use_container_width=True,
                     hide_index=True,
                     disabled=[c for c in df_com_checkbox.columns if c != "Excluir"],
-                    column_config={"_id_real_planilha": None} # Oculta a coluna técnica do operador
+                    column_config={"_id_real_planilha": None}
                 )
                 
                 if st.button("🗑️ Excluir Registros Marcados Permanentemente", type="primary"):
-                    # Coleta as linhas que foram marcadas com True
                     linhas_marcadas = df_editado_global[df_editado_global["Excluir"] == True]
                     
                     if not linhas_marcadas.empty:
-                        # Extrai os índices físicos reais da base
                         indices_originais_remover = linhas_marcadas["_id_real_planilha"].tolist()
-                        
-                        # Remove de forma exata usando o mapeamento físico
                         df_atualizado = st.session_state.dados_operacao.drop(index=indices_originais_remover).reset_index(drop=True)
                         
-                        # Dispara sincronização tratada contra dados nulos
                         if atualizar_planilha_nuvem(df_atualizado):
                             st.session_state.dados_operacao = df_atualizado
                             st.success(f"Sucesso! {len(indices_originais_remover)} registro(s) deletado(s) da planilha!")
                             st.rerun()
                         else:
-                            st.error("Erro ao sincronizar com o Google Sheets. Verifique a conexão com a internet ou o Apps Script.")
+                            st.error("Erro ao sincronizar com o Google Sheets.")
                     else:
                         st.warning("Nenhum registro foi marcado no quadradinho para exclusão.")
             else:
